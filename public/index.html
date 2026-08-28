@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شات العرب - تسجيل الدخول</title>
+    <title>شات العرب - المحادثة الجماعية والخاصة</title>
     <!-- مكتبة Google Sign-In -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
@@ -21,7 +21,7 @@
 
         /* شاشة تسجيل الدخول */
         #auth-screen {
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.7);
             padding: 30px;
             border-radius: 15px;
             text-align: center;
@@ -47,10 +47,8 @@
         .google-btn { background-color: #1a4b84; border: 2px solid #f39c12; }
         .guest-btn { background-color: #0b2535; }
         .member-btn { background-color: #7ab51d; }
-
         .auth-btn:hover { opacity: 0.9; transform: scale(1.02); }
 
-        /* نواذج إدخال البيانات الإضافية */
         .input-form {
             display: none;
             margin-top: 15px;
@@ -81,14 +79,79 @@
             display: none;
         }
 
-        /* شاشة الشات (مخفية حتى يتم تسجيل الدخول) */
+        /* شاشة الشات */
         #chat-screen {
             display: none;
-            width: 100%;
+            width: 100vw;
             height: 100vh;
             background: #fff;
+            flex-direction: column;
+        }
+
+        .chat-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #0b2535;
+            color: white;
+            padding: 15px;
+            overflow-y: auto;
+            border-left: 1px solid #ccc;
+        }
+
+        .user-item {
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            background: rgba(255,255,255,0.1);
+        }
+        .user-item:hover { background: rgba(255,255,255,0.2); }
+
+        .chat-main {
+            flex: 1;
             display: flex;
             flex-direction: column;
+            background: #f9f9f9;
+        }
+
+        .messages-area {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .message-bubble {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 70%;
+            word-wrap: break-word;
+            background: #e2e8f0;
+        }
+
+        .message-bubble.my-msg {
+            background: #dcf8c6;
+            margin-right: auto;
+        }
+
+        .input-area {
+            padding: 10px;
+            background: #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-area input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
         }
     </style>
 </head>
@@ -96,11 +159,9 @@
 
     <!-- شاشة تسجيل الدخول -->
     <div id="auth-screen">
-        <h2 style="color: white; margin-bottom: 20px;" id="auth-title">منصة شات العرب</h2>
+        <h2 style="color: white; margin-bottom: 20px;">منصة شات العرب</h2>
         
-        <!-- الأزرار الرئيسية كما طلبتها -->
         <div id="main-auth-buttons">
-            <!-- زر جوجل -->
             <div id="g_id_onload"
                  data-client_id="593400807452-hasied40uonfha4fh157c7vtb0tibkk4.apps.googleusercontent.com"
                  data-callback="handleGoogleSignIn"
@@ -112,7 +173,7 @@
             <button class="auth-btn member-btn" onclick="showForm('member')">👤 دخول الأعضاء</button>
         </div>
 
-        <!-- نموذج بيانات الزائر -->
+        <!-- نموذج الزائر -->
         <div id="guest-form" class="input-form">
             <input type="text" id="guest-name" placeholder="أدخل اسمك المستعار">
             <input type="number" id="guest-age" placeholder="العمر">
@@ -124,9 +185,9 @@
             <span class="back-link" onclick="goBack()">إرجاع</span>
         </div>
 
-        <!-- نموذج بيانات عضوية جوجل الإضافية (الاسم، العمر، الجنس) -->
+        <!-- نموذج بيانات جوجل الإضافية -->
         <div id="google-extra-form" class="input-form">
-            <p style="color: #fff; font-size: 13px;">أكمل بيانات حساب جوجل الخاص بك:</p>
+            <p style="color: #fff; font-size: 13px;">أكمل بيانات حسابك:</p>
             <input type="text" id="google-custom-name" placeholder="الاسم في الشات">
             <input type="number" id="google-age" placeholder="العمر">
             <select id="google-gender">
@@ -136,7 +197,7 @@
             <button class="auth-btn google-btn" onclick="submitGoogleExtra()">متابعة الدخول</button>
         </div>
 
-        <!-- نموذج دخول الأعضاء التقليدي (بالبريد وكلمة المرور) -->
+        <!-- نموذج الأعضاء التقليدي -->
         <div id="member-form" class="input-form">
             <input type="email" id="auth-email" placeholder="البريد الإلكتروني">
             <input type="password" id="auth-password" placeholder="كلمة المرور">
@@ -148,23 +209,38 @@
         <div id="auth-error"></div>
     </div>
 
-    <!-- شاشة الشات الرئيسية -->
-    <div id="chat-screen" style="display: none;">
+    <!-- شاشة الشات الكاملة -->
+    <div id="chat-screen">
         <div style="background: #0b2535; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
-            <h3>غرفة الدردشة العامة</h3>
-            <div>مرحباً، <span id="current-user-display" style="font-weight: bold; color: #7ab51d;"></span></div>
+            <h3 id="room-title">غرفة الدردشة العامة</h3>
+            <div>مرحباً، <span id="current-user-display" style="font-weight: bold; color: #7ab51d;"></span> | <button onclick="location.reload()" style="background:#ff6b6b; border:none; color:white; padding:5px 10px; border-radius:5px; cursor:pointer;">خروج</button></div>
         </div>
-        <div id="public-messages" style="flex: 1; padding: 15px; overflow-y: auto; background: #f4f4f4;"></div>
-        <div style="padding: 10px; background: #ddd; display: flex;">
-            <input type="text" id="public-input" placeholder="اكتب رسالتك هنا..." style="flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <button onclick="sendPublicMessage()" style="padding: 10px 20px; background: #1a4b84; color: white; border: none; border-radius: 5px; margin-right: 5px; cursor: pointer;">إرسال</button>
+        <div class="chat-container">
+            <!-- قائمة المتواجدين -->
+            <div class="sidebar">
+                <h4>المتواجدون</h4>
+                <div id="users-list"></div>
+            </div>
+            <!-- منطقة الرسائل -->
+            <div class="chat-main">
+                <div id="typing-indicator" style="padding: 5px 15px; font-size: 12px; color: #666; font-style: italic;"></div>
+                <div id="messages-box" class="messages-area"></div>
+                <!-- إدخال الرسائل والصور والإيموجيات -->
+                <div class="input-area">
+                    <input type="text" id="message-input" placeholder="اكتب رسالتك أو ضع إيموجي هنا...">
+                    <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="sendImage(this)">
+                    <button onclick="document.getElementById('image-input').click()" style="padding: 10px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">🖼️</button>
+                    <button onclick="sendMessage()" style="padding: 10px 20px; background: #1a4b84; color: white; border: none; border-radius: 5px; cursor: pointer;">إرسال</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="script.js"></script>
     <script>
         let googlePayloadTemp = null;
+        let socket;
+        let currentTargetSocketId = null; // للمحادثة الخاصة
 
         function showForm(type) {
             document.getElementById('main-auth-buttons').style.display = 'none';
@@ -185,7 +261,6 @@
         }
 
         function handleGoogleSignIn(response) {
-            // حفظ التوكن مؤقتاً وإظهار نموذج إدخال العمر والجنس والاسم
             googlePayloadTemp = response.credential;
             document.getElementById('main-auth-buttons').style.display = 'none';
             document.getElementById('google-extra-form').style.display = 'block';
@@ -210,12 +285,8 @@
             })
             .then(res => res.json())
             .then(data => {
-                if (data.success) {
-                    startChatSession(data.username);
-                } else {
-                    errorDiv.innerText = data.message || 'فشل تسجيل الدخول';
-                    errorDiv.style.display = 'block';
-                }
+                if (data.success) initChat(data.username);
+                else { errorDiv.innerText = data.message; errorDiv.style.display = 'block'; }
             });
         }
 
@@ -238,36 +309,120 @@
             })
             .then(res => res.json())
             .then(data => {
-                if (data.success) {
-                    startChatSession(data.username);
-                } else {
-                    errorDiv.innerText = data.message;
-                    errorDiv.style.display = 'block';
-                }
+                if (data.success) initChat(data.username);
+                else { errorDiv.innerText = data.message; errorDiv.style.display = 'block'; }
             });
         }
 
-        function startChatSession(username) {
+        function submitAuthForm() {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            const username = document.getElementById('reg-username').value.trim();
+            const errorDiv = document.getElementById('auth-error');
+
+            fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, username })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) initChat(data.username);
+                else { errorDiv.innerText = data.message; errorDiv.style.display = 'block'; }
+            });
+        }
+
+        function initChat(username) {
             document.getElementById('auth-screen').style.display = 'none';
             document.getElementById('chat-screen').style.display = 'flex';
             document.getElementById('current-user-display').innerText = username;
-            
-            const socket = io();
+
+            socket = io();
             socket.emit('join_room', { username, room: 'general' });
 
             socket.on('chat_message', (data) => {
-                const box = document.getElementById('public-messages');
-                box.innerHTML += `<div><strong>${data.username || 'نظام'}:</strong> ${data.message || data.text}</div>`;
+                const box = document.getElementById('messages-box');
+                let content = data.system ? `<em style="color:gray;">${data.message}</em>` : `<strong>${data.username}:</strong> ${data.message || ''}`;
+                if (data.image) content += `<br><img src="${data.image}" style="max-width:200px; border-radius:5px; margin-top:5px;">`;
+                box.innerHTML += `<div class="message-bubble">${content}</div>`;
                 box.scrollTop = box.scrollHeight;
             });
 
-            window.sendPublicMessage = function() {
-                const input = document.getElementById('public-input');
-                if(input.value.trim()) {
-                    socket.emit('send_message', { room: 'general', message: input.value });
-                    input.value = '';
+            socket.on('receive_private_msg', (data) => {
+                const box = document.getElementById('messages-box');
+                let content = `<strong style="color: #d9534f;">[خاص من ${data.senderName}]:</strong> ${data.message || ''}`;
+                if (data.image) content += `<br><img src="${data.image}" style="max-width:200px; border-radius:5px; margin-top:5px;">`;
+                box.innerHTML += `<div class="message-bubble" style="background:#fce8e6;">${content}</div>`;
+                box.scrollTop = box.scrollHeight;
+            });
+
+            socket.on('update_users', (users) => {
+                const list = document.getElementById('users-list');
+                list.innerHTML = `<div class="user-item" onclick="setPublicChat()">💬 الغرفة العامة</div>`;
+                users.forEach(u => {
+                    if (u.username !== username) {
+                        list.innerHTML += `<div class="user-item" onclick="startPrivateChat('${u.id}', '${u.username}')">👤 ${u.username} (مراسلة خاصة)</div>`;
+                    }
+                });
+            });
+
+            const msgInput = document.getElementById('message-input');
+            msgInput.addEventListener('input', () => {
+                socket.emit('typing', { room: 'general' });
+                clearTimeout(window.typingTimeout);
+                window.typingTimeout = setTimeout(() => socket.emit('stop_typing', { room: 'general' }), 1000);
+            });
+
+            socket.on('display_typing', (data) => {
+                document.getElementById('typing-indicator').innerText = `${data.username} يكتب الآن...`;
+            });
+            socket.on('hide_typing', () => {
+                document.getElementById('typing-indicator').innerText = '';
+            });
+        }
+
+        function setPublicChat() {
+            currentTargetSocketId = null;
+            document.getElementById('room-title').innerText = 'غرفة الدردشة العامة';
+        }
+
+        function startPrivateChat(socketId, targetName) {
+            currentTargetSocketId = socketId;
+            document.getElementById('room-title').innerText = `محادثة خاصة مع: ${targetName}`;
+            alert(`تم الانتقال للوضع الخاص مع ${targetName}`);
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            if (currentTargetSocketId) {
+                socket.emit('send_private_msg', { targetSocketId: currentTargetSocketId, message: text });
+                const box = document.getElementById('messages-box');
+                box.innerHTML += `<div class="message-bubble my-msg"><strong>أنت (خاص):</strong> ${text}</div>`;
+                box.scrollTop = box.scrollHeight;
+            } else {
+                socket.emit('send_message', { room: 'general', message: text });
+            }
+            input.value = '';
+        }
+
+        function sendImage(inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Image = e.target.result;
+                if (currentTargetSocketId) {
+                    socket.emit('send_private_msg', { targetSocketId: currentTargetSocketId, image: base64Image });
+                    const box = document.getElementById('messages-box');
+                    box.innerHTML += `<div class="message-bubble my-msg"><strong>أنت (خاص):</strong><br><img src="${base64Image}" style="max-width:200px; border-radius:5px;"></div>`;
+                } else {
+                    socket.emit('send_message', { room: 'general', image: base64Image });
                 }
             };
+            reader.readAsDataURL(file);
         }
     </script>
 </body>
