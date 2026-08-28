@@ -7,13 +7,15 @@ if (!currentUser || currentUser.trim() === '') {
 
 let currentRoom = 'general';
 let currentPrivateTargetId = null;
-let unreadCount = 0;
 
-// قائمة الأشخاص النشطين في الخاص { socketId: username }
+// قائمة الأشخاص النشطين { socketId: username }
 let activePmUsers = {};
 
-// تخزين سجل الرسائل الخاص بكل مستخدم { socketId: [ {sender, msg, image, isMe} ] }
+// تخزين سجل الرسائل لكل مستخدم { socketId: [ {sender, msg, image, isMe} ] }
 let pmChatHistories = {};
+
+// تخزين عدد الرسائل غير المقروءة لكل مستخدم { socketId: count }
+let unreadCountsPerUser = {};
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣'];
@@ -154,13 +156,19 @@ function renderPmInboxList() {
 
     keys.forEach(id => {
         const username = activePmUsers[id];
+        const unreadForThisUser = unreadCountsPerUser[id] || 0;
+        
         const item = document.createElement('div');
         item.className = 'pm-inbox-item';
         
+        // عرض شارة عدد الرسائل بجانب اسم المستخدم في القائمة إن وجدت
+        let badgeHtml = unreadForThisUser > 0 ? `<span style="background: red; color: white; border-radius: 50%; padding: 1px 6px; font-size: 11px; margin-right: 8px;">${unreadForThisUser}</span>` : '';
+
         item.innerHTML = `
             <span class="pm-inbox-close" onclick="removePmConversation(event, '${id}')">✖</span>
-            <div class="pm-inbox-user" onclick="selectUserFromInbox('${id}', '${username}')">
+            <div class="pm-inbox-user" onclick="selectUserFromInbox('${id}', '${username}')" style="display: flex; align-items: center; flex: 1;">
                 <span>👤 ${username}</span>
+                ${badgeHtml}
             </div>
         `;
         container.appendChild(item);
@@ -176,7 +184,9 @@ function removePmConversation(event, targetId) {
     event.stopPropagation();
     delete activePmUsers[targetId];
     delete pmChatHistories[targetId];
+    delete unreadCountsPerUser[targetId];
     renderPmInboxList();
+    updateTotalBadge();
     if (currentPrivateTargetId === targetId) {
         closePrivateModal();
     }
@@ -185,9 +195,9 @@ function removePmConversation(event, targetId) {
 function clearAllPmConversations() {
     activePmUsers = {};
     pmChatHistories = {};
+    unreadCountsPerUser = {};
     renderPmInboxList();
-    unreadCount = 0;
-    updateBadge();
+    updateTotalBadge();
     closePrivateModal();
 }
 
@@ -196,21 +206,19 @@ function openPrivateChat(targetSocketId, targetUsername) {
     currentPrivateTargetId = targetSocketId;
     activePmUsers[targetSocketId] = targetUsername;
 
-    // إنشاء سجل فارغ للمستخدم إذا لم يكن موجوداً
+    // تصفير عداد الرسائل غير المقروءة لهذا المستخدم فقط عند فتح محادثته
+    unreadCountsPerUser[targetSocketId] = 0;
+    updateTotalBadge();
+
     if (!pmChatHistories[targetSocketId]) {
         pmChatHistories[targetSocketId] = [];
     }
 
     document.getElementById('private-target-name').innerText = `محادثة مع: ${targetUsername}`;
-    
-    // إعادة بناء شاشة المحادثة واستعراض السجل الخاص بهذا المستخدم فقط
     loadPrivateChatHistory(targetSocketId);
 
     const modal = document.getElementById('private-chat-modal');
     modal.style.display = 'block';
-    
-    unreadCount = 0;
-    updateBadge();
 
     setTimeout(() => {
         const privateInp = document.getElementById('private-input');
@@ -222,7 +230,7 @@ function openPrivateChat(targetSocketId, targetUsername) {
 
 function loadPrivateChatHistory(targetSocketId) {
     const msgContainer = document.getElementById('private-messages');
-    msgContainer.innerHTML = ''; // مسح المحادثة السابقة من الشاشة
+    msgContainer.innerHTML = '';
 
     const history = pmChatHistories[targetSocketId] || [];
     history.forEach(item => {
@@ -247,7 +255,6 @@ function sendPrivateMessage() {
             message: msg 
         });
         
-        // حفظ الرسالة في سجل المستخدم المستهدف
         saveAndAppendPrivateMsg(currentPrivateTargetId, 'أنت', msg, null, true);
         privateInp.value = '';
         privateInp.focus();
@@ -287,7 +294,6 @@ socket.on('receive_private_msg', (data) => {
         pmChatHistories[data.senderId] = [];
     }
 
-    // حفظ الرسالة الواردة في سجّل المرسل الخاص فقط
     pmChatHistories[data.senderId].push({
         sender: data.senderName,
         msg: data.message,
@@ -297,12 +303,13 @@ socket.on('receive_private_msg', (data) => {
 
     const modal = document.getElementById('private-chat-modal');
 
-    // إذا كانت نافذة هذا الشخص مفتوحة حالياً، نقوم بطلب عرض الرسالة
+    // إذا كانت نافذة هذا الشخص مفتوحة حالياً، لا نزيد عداد إشعاراته
     if (modal.style.display === 'block' && currentPrivateTargetId === data.senderId) {
         renderSinglePrivateMsg(data.senderName, data.message, data.image, false);
     } else {
-        unreadCount++;
-        updateBadge();
+        // زيادة العداد الخاص بهذا المرسل فقط
+        unreadCountsPerUser[data.senderId] = (unreadCountsPerUser[data.senderId] || 0) + 1;
+        updateTotalBadge();
     }
 });
 
@@ -334,11 +341,14 @@ function renderSinglePrivateMsg(sender, msg, image, isMe) {
     msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
-function updateBadge() {
+// حساب المجموع الكلي للرسائل غير المقروءة لظهوره في زر الهيدر العلوي
+function updateTotalBadge() {
     const badge = document.getElementById('pm-badge');
+    const totalUnread = Object.values(unreadCountsPerUser).reduce((a, b) => a + b, 0);
+
     if (badge) {
-        if (unreadCount > 0) {
-            badge.innerText = unreadCount;
+        if (totalUnread > 0) {
+            badge.innerText = totalUnread;
             badge.style.display = 'inline-block';
         } else {
             badge.style.display = 'none';
