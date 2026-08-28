@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 1e7 // السماح برفع صور حتى 10 ميجابايت
+    maxHttpBufferSize: 1e7
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -15,25 +15,35 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// تخزين بيانات المتصلين
 const users = {};
 
 io.on('connection', (socket) => {
-    // تسجيل انضمام المستخدم
+
+    // 1. تسجيل الانضمام
     socket.on('join_room', (data) => {
-        socket.username = data.username;
+        socket.username = data.username || 'زائر';
         socket.room = data.room || 'general';
         socket.join(socket.room);
 
-        users[socket.id] = { id: socket.id, username: data.username, room: socket.room };
-        
+        // إضافة المستخدم بالقائمة بالتفصيل
+        users[socket.id] = { 
+            id: socket.id, 
+            username: socket.username, 
+            room: socket.room 
+        };
+
+        // تحديث قائمة المستخدمين عند الجميع
         io.to(socket.room).emit('update_users', Object.values(users));
+
+        // إشعار انضمام
         socket.to(socket.room).emit('chat_message', {
             username: 'النظام',
-            message: `${data.username} انضم إلى المحادثة.`
+            message: `${socket.username} انضم إلى المحادثة.`
         });
     });
 
-    // إرسال رسالة عامة (نص وصورة)
+    // 2. إرسال رسالة عامة
     socket.on('send_message', (data) => {
         io.to(data.room).emit('chat_message', {
             username: socket.username,
@@ -42,33 +52,37 @@ io.on('connection', (socket) => {
         });
     });
 
-    // إرسال رسالة خاصة (نص وصورة)
+    // 3. إرسال رسالة خاصة
     socket.on('send_private_msg', (data) => {
-        io.to(data.targetSocketId).emit('receive_private_msg', {
-            senderId: socket.id,
-            senderName: socket.username,
-            message: data.message,
-            image: data.image || null
-        });
+        if (data.targetSocketId && io.sockets.sockets.get(data.targetSocketId)) {
+            io.to(data.targetSocketId).emit('receive_private_msg', {
+                senderId: socket.id,
+                senderName: socket.username,
+                message: data.message,
+                image: data.image || null
+            });
+        }
     });
 
-    // أحداث الكتابة
+    // 4. مؤشر الكتابة
     socket.on('typing', (data) => {
-        socket.to(data.room).emit('display_typing', { username: data.username });
+        socket.to(data.room).emit('display_typing', { username: socket.username });
     });
 
     socket.on('stop_typing', (data) => {
         socket.to(data.room).emit('hide_typing');
     });
 
-    // خروج المستخدم
+    // 5. عند الانقطاع
     socket.on('disconnect', () => {
-        if (socket.username) {
+        if (users[socket.id]) {
+            const disconnectedUser = users[socket.id];
             delete users[socket.id];
-            io.to(socket.room).emit('update_users', Object.values(users));
-            socket.to(socket.room).emit('chat_message', {
+
+            io.to(disconnectedUser.room).emit('update_users', Object.values(users));
+            io.to(disconnectedUser.room).emit('chat_message', {
                 username: 'النظام',
-                message: `${socket.username} غادر المحادثة.`
+                message: `${disconnectedUser.username} غادر المحادثة.`
             });
         }
     });
