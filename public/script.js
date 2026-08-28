@@ -8,15 +8,17 @@ if (!currentUser || currentUser.trim() === '') {
 let currentRoom = 'general';
 let currentPrivateTargetId = null;
 let unreadCount = 0;
-const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
+// تخزين قائمة المحادثات الخاصة النشطة { socketId: username }
+let activePmUsers = {};
+
+const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣'];
 
 socket.on('connect', () => {
     socket.emit('join_room', { username: currentUser, room: currentRoom });
 });
 
-// إعداد قائمة الإيموجيات
 window.addEventListener('DOMContentLoaded', () => {
     setupEmojiPicker('public-emoji-list', 'public-input');
     setupEmojiPicker('private-emoji-list', 'private-input');
@@ -126,9 +128,65 @@ socket.on('hide_typing', () => {
     if (indicator) indicator.innerText = '';
 });
 
-// --- الشات الخاص ---
+// --- إدراء قائمة محادثات الخاص (Inbox List) ---
+function togglePmInboxModal() {
+    const modal = document.getElementById('pm-inbox-modal');
+    if (modal.style.display === 'block') {
+        modal.style.display = 'none';
+    } else {
+        renderPmInboxList();
+        modal.style.display = 'block';
+    }
+}
+
+function renderPmInboxList() {
+    const container = document.getElementById('pm-inbox-list');
+    container.innerHTML = '';
+
+    const keys = Object.keys(activePmUsers);
+    if (keys.length === 0) {
+        container.innerHTML = '<div style="padding:15px; text-align:center; color:#888;">لا توجد رسائل خاصة حالياً</div>';
+        return;
+    }
+
+    keys.forEach(id => {
+        const username = activePmUsers[id];
+        const item = document.createElement('div');
+        item.className = 'pm-inbox-item';
+        
+        item.innerHTML = `
+            <span class="pm-inbox-close" onclick="removePmConversation(event, '${id}')">✖</span>
+            <div class="pm-inbox-user" onclick="selectUserFromInbox('${id}', '${username}')">
+                <span>👤 ${username}</span>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function selectUserFromInbox(targetId, username) {
+    document.getElementById('pm-inbox-modal').style.display = 'none';
+    openPrivateChat(targetId, username);
+}
+
+function removePmConversation(event, targetId) {
+    event.stopPropagation();
+    delete activePmUsers[targetId];
+    renderPmInboxList();
+}
+
+function clearAllPmConversations() {
+    activePmUsers = {};
+    renderPmInboxList();
+    unreadCount = 0;
+    updateBadge();
+}
+
+// --- الشات الخاص المباشر ---
 function openPrivateChat(targetSocketId, targetUsername) {
     currentPrivateTargetId = targetSocketId;
+    activePmUsers[targetSocketId] = targetUsername;
+
     document.getElementById('private-target-name').innerText = `محادثة مع: ${targetUsername}`;
     
     const modal = document.getElementById('private-chat-modal');
@@ -137,11 +195,9 @@ function openPrivateChat(targetSocketId, targetUsername) {
     unreadCount = 0;
     updateBadge();
 
-    // التركيز التلقائي على خانة النص فور الفتح
     setTimeout(() => {
         const privateInp = document.getElementById('private-input');
         if (privateInp) {
-            privateInp.removeAttribute('disabled');
             privateInp.focus();
         }
     }, 100);
@@ -168,7 +224,6 @@ function sendPrivateMessage() {
     }
 }
 
-// الاستماع المباشر للكتابة في الخاص
 document.getElementById('private-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         e.preventDefault();
@@ -195,6 +250,10 @@ function sendPrivateImage(input) {
 
 socket.on('receive_private_msg', (data) => {
     notificationSound.play().catch(() => {});
+    
+    // إضافة المرسل تلقائياً لداخل قائمة المحادثات الخاصة النشطة
+    activePmUsers[data.senderId] = data.senderName;
+
     const modal = document.getElementById('private-chat-modal');
 
     if (modal.style.display === 'block' && currentPrivateTargetId === data.senderId) {
@@ -239,7 +298,6 @@ function updateBadge() {
     }
 }
 
-// دالة سحب النافذة المنبثقة بدون تعطيل خانات الإدخال
 function makeModalDraggable(elmnt) {
     if (!elmnt) return;
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -251,7 +309,6 @@ function makeModalDraggable(elmnt) {
 
     function dragMouseDown(e) {
         e = e || window.event;
-        // حظر السحب فقط عند الضغط على زر الإغلاق
         if (e.target.tagName === 'BUTTON') return;
         
         pos3 = e.clientX;
