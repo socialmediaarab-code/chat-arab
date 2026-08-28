@@ -4,9 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>شات العرب</title>
+    <!-- مكتبة جوجل للـ Sign-In -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f7f6; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* شاشة تسجيل الدخول */
+        #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+        .auth-card { background: #fff; padding: 30px; border-radius: 10px; width: 350px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
+        .auth-card h2 { margin-bottom: 20px; color: #1e3c72; }
+        .auth-card input { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+        .auth-card button { width: 100%; padding: 10px; background: #1e3c72; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
+        .auth-card button:hover { background: #2a5298; }
+        .switch-auth { font-size: 13px; color: #666; cursor: pointer; margin-top: 10px; }
+        .switch-auth:hover { color: #1e3c72; text-decoration: underline; }
+        .error-msg { color: red; font-size: 12px; margin-bottom: 10px; display: none; }
+
+        /* تنسيقات الشات العامة */
         header { background: #1e3c72; color: #fff; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
         .container { display: flex; flex: 1; overflow: hidden; }
         .sidebar { width: 250px; background: #fff; border-left: 1px solid #ddd; padding: 15px; overflow-y: auto; }
@@ -22,31 +37,54 @@
         .msg.me { align-self: flex-end; background: #dcf8c6; }
         .chat-img { max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 5px; display: block; }
 
-        /* نافذة الإيموجي المصغرة السريعة */
         .emoji-picker-box { display: none; position: absolute; bottom: 55px; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 8px; width: 220px; gap: 5px; flex-wrap: wrap; box-shadow: 0 4px 10px rgba(0,0,0,0.15); z-index: 1001; }
         .emoji-picker-box span { cursor: pointer; font-size: 20px; padding: 3px; border-radius: 4px; }
         .emoji-picker-box span:hover { background: #eee; }
 
-        /* نافذة قائمة المحادثات الخاصة (نفس تصميم الصورة) */
         #pm-inbox-modal { display: none; position: fixed; top: 15%; left: 50%; transform: translateX(-50%); width: 320px; background: #fff; border-radius: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); z-index: 1005; overflow: hidden; }
         .pm-inbox-header { background: #1e3c72; color: #fff; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 14px; }
         .pm-inbox-header .clear-btn { background: transparent; border: none; color: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 4px; }
         .pm-inbox-list { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; }
         .pm-inbox-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s; }
         .pm-inbox-item:hover { background: #f0f4f8; }
-        .pm-inbox-user { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 14px; color: #333; }
         .pm-inbox-close { color: #888; font-size: 16px; cursor: pointer; padding: 2px 6px; }
         .pm-inbox-close:hover { color: #d9534f; }
 
-        /* نافذة الشات الخاص المنبثقة */
         #private-chat-modal { display: none; position: fixed; top: 100px; left: 100px; width: 350px; background: #fff; border: 1px solid #ccc; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1000; overflow: hidden; }
         #private-modal-header { background: #1e3c72; color: #fff; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none; }
     </style>
 </head>
 <body>
 
+    <!-- شاشة تسجيل الدخول والإنشاء -->
+    <div id="auth-screen">
+        <div class="auth-card">
+            <h2 id="auth-title">تسجيل الدخول</h2>
+            <div id="auth-error" class="error-msg"></div>
+            
+            <div id="register-name-field" style="display: none;">
+                <input type="text" id="reg-username" placeholder="اسم المستخدم" />
+            </div>
+            <input type="email" id="auth-email" placeholder="البريد الإلكتروني" />
+            <input type="password" id="auth-password" placeholder="كلمة المرور" />
+            
+            <button id="auth-submit-btn" onclick="submitAuthForm()">دخول</button>
+            <div class="switch-auth" id="switch-mode-btn" onclick="toggleAuthMode()">ليس لديك حساب؟ إنشاء حساب جديد</div>
+
+            <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
+
+            <!-- زر جوجل الرسمي -->
+            <div id="g_id_onload"
+                 data-client_id="593400807452-hasied40uonfha4fh157c7vtb0tibkk4.apps.googleusercontent.com"
+                 data-callback="handleGoogleSignIn"
+                 data-auto_prompt="false">
+            </div>
+            <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large" data-locale="ar"></div>
+        </div>
+    </div>
+
     <header>
-        <h2>شات العرب</h2>
+        <h2>شات العرب (<span id="current-user-display"></span>)</h2>
         <div id="pm-notification-btn" onclick="togglePmInboxModal()" style="position: relative; cursor: pointer; font-size: 15px;">
             <span>✉️ الرسائل الخاصّة</span>
             <span id="pm-badge" style="display: none; position: absolute; top: -8px; right: -12px; background: red; color: white; border-radius: 50%; padding: 2px 7px; font-size: 11px; font-weight: bold;">0</span>
@@ -74,18 +112,16 @@
         </div>
     </div>
 
-    <!-- نافذة صندوق رسائل الخاص (Inboxes Modal) -->
+    <!-- نافذة صندوق رسائل الخاص -->
     <div id="pm-inbox-modal">
         <div class="pm-inbox-header">
             <span style="cursor: pointer;" onclick="togglePmInboxModal()">✖</span>
             <button class="clear-btn" onclick="clearAllPmConversations()">Clear 🗑️</button>
         </div>
-        <div id="pm-inbox-list" class="pm-inbox-list">
-            <!-- سيتم إضافة المحادثات هنا ديناميكياً -->
-        </div>
+        <div id="pm-inbox-list" class="pm-inbox-list"></div>
     </div>
 
-    <!-- نافذة الخاص المنبثقة للدردشة المباشرة -->
+    <!-- نافذة الخاص المنبثقة -->
     <div id="private-chat-modal">
         <div id="private-modal-header">
             <span id="private-target-name">محادثة خاصة</span>
