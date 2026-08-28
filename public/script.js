@@ -1,31 +1,39 @@
 const socket = io();
 
-let currentUser = prompt('أدخل اسمك للدخول إلى الدردشة:') || 'زائر_' + Math.floor(Math.random() * 1000);
+let currentUser = prompt('أدخل اسمك للدخول إلى الدردشة:');
+if (!currentUser || currentUser.trim() === '') {
+    currentUser = 'زائر_' + Math.floor(Math.random() * 1000);
+}
+
 let currentRoom = 'general';
 let currentPrivateTargetId = null;
 let unreadCount = 0;
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// تسجيل انضمام الغرفة
-socket.emit('join_room', { username: currentUser, room: currentRoom });
+// تسجيل دخول العميل عند الاتصال مباشرة
+socket.on('connect', () => {
+    socket.emit('join_room', { username: currentUser, room: currentRoom });
+});
 
-// عناصر الواجهة
 const publicMessages = document.getElementById('public-messages');
 const publicInput = document.getElementById('public-input');
 const privateInput = document.getElementById('private-input');
 const usersList = document.getElementById('users-list');
 const typingIndicator = document.getElementById('typing-indicator');
 
-// --- إعداد مكتبة الإيموجي ---
-const picker = new EmojiButton({ position: 'top-start' });
-const emojiBtn = document.getElementById('emoji-btn');
+// مكتبة الإيموجي
+try {
+    const picker = new EmojiButton({ position: 'top-start' });
+    const emojiBtn = document.getElementById('emoji-btn');
+    emojiBtn.addEventListener('click', () => picker.togglePicker(emojiBtn));
+    picker.on('emoji', selection => {
+        publicInput.value += selection.emoji;
+    });
+} catch(e) {
+    console.log("لم يتم تحميل الإيموجي بشكل صحيح", e);
+}
 
-emojiBtn.addEventListener('click', () => picker.togglePicker(emojiBtn));
-picker.on('emoji', selection => {
-    publicInput.value += selection.emoji;
-});
-
-// --- 1. الشات العام ---
+// 1. إرسال واستقبال الشات العام
 function sendPublicMessage() {
     const msg = publicInput.value.trim();
     if (msg) {
@@ -65,25 +73,24 @@ socket.on('chat_message', (data) => {
     publicMessages.scrollTop = publicMessages.scrollHeight;
 });
 
-// --- 2. قائمة المتصلين ---
+// 2. تحديث قائمة المستخدمين المتصلين
 socket.on('update_users', (users) => {
     usersList.innerHTML = '';
     users.forEach(u => {
-        if (u.username !== currentUser) {
+        if (u.id !== socket.id) {
             const uDiv = document.createElement('div');
             uDiv.className = 'user-item';
             uDiv.innerText = `👤 ${u.username}`;
-            // ربط معرف الـ socket الصحيح مع دالة الفتح
             uDiv.onclick = () => openPrivateChat(u.id, u.username);
             usersList.appendChild(uDiv);
         }
     });
 });
 
-// --- 3. مؤشر "يكتب الآن" ---
+// 3. مؤشر "يكتب الآن"
 let typingTimeout;
 publicInput.addEventListener('input', () => {
-    socket.emit('typing', { username: currentUser, room: currentRoom });
+    socket.emit('typing', { room: currentRoom });
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
         socket.emit('stop_typing', { room: currentRoom });
@@ -98,7 +105,7 @@ socket.on('hide_typing', () => {
     typingIndicator.innerText = '';
 });
 
-// --- 4. النافذة المنبثقة والسحب للخاص ---
+// 4. النافذة المنبثقة والسحب
 dragElement(document.getElementById("private-chat-modal"));
 
 function dragElement(elmnt) {
@@ -145,7 +152,6 @@ function closePrivateModal() {
     currentPrivateTargetId = null;
 }
 
-// إرسال رسالة خاصة
 function sendPrivateMessage() {
     const msg = privateInput.value.trim();
     if (msg && currentPrivateTargetId) {
@@ -159,7 +165,6 @@ privateInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendPrivateMessage();
 });
 
-// إرسال صورة في الخاص
 function sendPrivateImage(input) {
     const file = input.files[0];
     if (file && currentPrivateTargetId) {
@@ -173,7 +178,6 @@ function sendPrivateImage(input) {
     }
 }
 
-// استقبال الرسالة الخاصة
 socket.on('receive_private_msg', (data) => {
     notificationSound.play().catch(() => {});
     const modal = document.getElementById('private-chat-modal');
