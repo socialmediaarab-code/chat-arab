@@ -1,6 +1,5 @@
 const socket = io();
 
-// اسم المستخدم
 let currentUser = prompt('أدخل اسمك للدخول إلى الدردشة:');
 if (!currentUser || currentUser.trim() === '') {
     currentUser = 'زائر_' + Math.floor(Math.random() * 1000);
@@ -11,49 +10,44 @@ let currentPrivateTargetId = null;
 let unreadCount = 0;
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// العناصر الرئيسية
-const publicMessages = document.getElementById('public-messages');
-const publicInput = document.getElementById('public-input');
-const usersList = document.getElementById('users-list');
-const typingIndicator = document.getElementById('typing-indicator');
+const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣', '🏻'];
 
-// الاتصال وتعميم الانضمام
 socket.on('connect', () => {
     socket.emit('join_room', { username: currentUser, room: currentRoom });
 });
 
-// تهيئة الإيموجي للشات العام والخاص
+// إعداد الإيموجيات عند تحميل الصفحة
 window.addEventListener('DOMContentLoaded', () => {
-    try {
-        if (typeof EmojiButton !== 'undefined') {
-            // إيموجي العام
-            const publicPicker = new EmojiButton({ position: 'top-start' });
-            const publicEmojiBtn = document.getElementById('emoji-btn');
-            if (publicEmojiBtn) {
-                publicEmojiBtn.addEventListener('click', () => publicPicker.togglePicker(publicEmojiBtn));
-                publicPicker.on('emoji', selection => {
-                    publicInput.value += selection.emoji;
-                });
-            }
-
-            // إيموجي الخاص
-            const privatePicker = new EmojiButton({ position: 'top-start' });
-            const privateEmojiBtn = document.getElementById('private-emoji-btn');
-            if (privateEmojiBtn) {
-                privateEmojiBtn.addEventListener('click', () => privatePicker.togglePicker(privateEmojiBtn));
-                privatePicker.on('emoji', selection => {
-                    const privateInp = document.getElementById('private-input');
-                    if (privateInp) privateInp.value += selection.emoji;
-                });
-            }
-        }
-    } catch (err) {
-        console.warn("تنبيه: تعذر تحميل الإيموجي", err);
-    }
+    setupEmojiPicker('public-emoji-list', 'public-input');
+    setupEmojiPicker('private-emoji-list', 'private-input');
 });
 
-// --- 1. الشات العام ---
+function setupEmojiPicker(pickerId, inputId) {
+    const picker = document.getElementById(pickerId);
+    if (!picker) return;
+    picker.innerHTML = '';
+    emojis.forEach(e => {
+        const span = document.createElement('span');
+        span.innerText = e;
+        span.onclick = () => {
+            const input = document.getElementById(inputId);
+            if (input) input.value += e;
+            picker.style.display = 'none';
+        };
+        picker.appendChild(span);
+    });
+}
+
+function toggleEmojiPicker(pickerId) {
+    const picker = document.getElementById(pickerId);
+    if (picker) {
+        picker.style.display = (picker.style.display === 'flex') ? 'none' : 'flex';
+    }
+}
+
+// الشات العام
 function sendPublicMessage() {
+    const publicInput = document.getElementById('public-input');
     const msg = publicInput.value.trim();
     if (msg) {
         socket.emit('send_message', { room: currentRoom, message: msg });
@@ -74,22 +68,21 @@ function sendPublicImage(input) {
     }
 }
 
-if (publicInput) {
-    publicInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendPublicMessage();
-    });
+document.getElementById('public-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendPublicMessage();
+});
 
-    let typingTimeout;
-    publicInput.addEventListener('input', () => {
-        socket.emit('typing', { room: currentRoom });
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => {
-            socket.emit('stop_typing', { room: currentRoom });
-        }, 1000);
-    });
-}
+let typingTimeout;
+document.getElementById('public-input').addEventListener('input', () => {
+    socket.emit('typing', { room: currentRoom });
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        socket.emit('stop_typing', { room: currentRoom });
+    }, 1000);
+});
 
 socket.on('chat_message', (data) => {
+    const publicMessages = document.getElementById('public-messages');
     const msgDiv = document.createElement('div');
     const isMe = data.username === currentUser;
     msgDiv.className = `msg ${isMe ? 'me' : ''}`;
@@ -103,8 +96,9 @@ socket.on('chat_message', (data) => {
     publicMessages.scrollTop = publicMessages.scrollHeight;
 });
 
-// --- 2. قائمة المتصلين ---
+// قائمة المتصلين
 socket.on('update_users', (users) => {
+    const usersList = document.getElementById('users-list');
     usersList.innerHTML = '';
     users.forEach(u => {
         if (u.id !== socket.id) {
@@ -117,16 +111,17 @@ socket.on('update_users', (users) => {
     });
 });
 
-// --- 3. مؤشر الكتابة ---
 socket.on('display_typing', (data) => {
-    if (typingIndicator) typingIndicator.innerText = `${data.username} يكتب الآن...`;
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) indicator.innerText = `${data.username} يكتب الآن...`;
 });
 
 socket.on('hide_typing', () => {
-    if (typingIndicator) typingIndicator.innerText = '';
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) indicator.innerText = '';
 });
 
-// --- 4. الشات الخاص والنافذة المنبثقة ---
+// الشات الخاص
 dragElement(document.getElementById("private-chat-modal"));
 
 function dragElement(elmnt) {
@@ -174,30 +169,25 @@ function closePrivateModal() {
     currentPrivateTargetId = null;
 }
 
-// إرسال نص في الخاص
 function sendPrivateMessage() {
-    const privateInp = document.getElementById('private-input');
-    if (!privateInp) return;
-
-    const msg = privateInp.value.trim();
+    const privateInput = document.getElementById('private-input');
+    const msg = privateInput.value.trim();
     if (msg && currentPrivateTargetId) {
         socket.emit('send_private_msg', { 
             targetSocketId: currentPrivateTargetId, 
             message: msg 
         });
         appendPrivateMessage('أنت', msg, null, true);
-        privateInp.value = '';
+        privateInput.value = '';
     }
 }
 
-// الاستماع لزر Enter داخل الخاص
-document.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'private-input') {
+document.getElementById('private-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
         sendPrivateMessage();
     }
 });
 
-// إرسال صورة في الخاص
 function sendPrivateImage(input) {
     const file = input.files[0];
     if (file && currentPrivateTargetId) {
@@ -215,7 +205,6 @@ function sendPrivateImage(input) {
     }
 }
 
-// استقبال الخاص
 socket.on('receive_private_msg', (data) => {
     notificationSound.play().catch(() => {});
     const modal = document.getElementById('private-chat-modal');
