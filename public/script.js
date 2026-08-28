@@ -11,7 +11,6 @@ let unreadCountsPerUser = {};
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣'];
 
-// التبديل بين نموذج تسجيل الدخول أو إنشاء حساب
 function toggleAuthMode() {
     isRegisterMode = !isRegisterMode;
     const title = document.getElementById('auth-title');
@@ -35,7 +34,6 @@ function toggleAuthMode() {
     }
 }
 
-// إرسال بيانات الدخول أو التسجيل بالبريد
 async function submitAuthForm() {
     const email = document.getElementById('auth-email').value.trim();
     const password = document.getElementById('auth-password').value.trim();
@@ -76,7 +74,6 @@ async function submitAuthForm() {
     }
 }
 
-// دالة مصادقة جوجل
 function handleGoogleSignIn(response) {
     fetch('/api/google-login', {
         method: 'POST',
@@ -95,7 +92,6 @@ function handleGoogleSignIn(response) {
     });
 }
 
-// بدء جلسة الشات بعد نجاح المصادقة
 function startChatSession(username) {
     currentUser = username;
     document.getElementById('current-user-display').innerText = currentUser;
@@ -151,7 +147,6 @@ function startChatSession(username) {
 
     socket.on('receive_private_msg', (data) => {
         notificationSound.play().catch(() => {});
-        
         activePmUsers[data.senderId] = data.senderName;
         
         if (!pmChatHistories[data.senderId]) {
@@ -166,7 +161,6 @@ function startChatSession(username) {
         });
 
         const modal = document.getElementById('private-chat-modal');
-
         if (modal.style.display === 'block' && currentPrivateTargetId === data.senderId) {
             renderSinglePrivateMsg(data.senderName, data.message, data.image, false);
         } else {
@@ -176,7 +170,6 @@ function startChatSession(username) {
     });
 }
 
-// --- إعدادات الإيموجي والشات الخاص ---
 function setupEmojiPicker(pickerId, inputId) {
     const picker = document.getElementById(pickerId);
     if (!picker) return;
@@ -262,7 +255,6 @@ function renderPmInboxList() {
     keys.forEach(id => {
         const username = activePmUsers[id];
         const unreadForThisUser = unreadCountsPerUser[id] || 0;
-        
         const item = document.createElement('div');
         item.className = 'pm-inbox-item';
         
@@ -308,7 +300,6 @@ function clearAllPmConversations() {
 function openPrivateChat(targetSocketId, targetUsername) {
     currentPrivateTargetId = targetSocketId;
     activePmUsers[targetSocketId] = targetUsername;
-
     unreadCountsPerUser[targetSocketId] = 0;
     updateTotalBadge();
 
@@ -324,16 +315,13 @@ function openPrivateChat(targetSocketId, targetUsername) {
 
     setTimeout(() => {
         const privateInp = document.getElementById('private-input');
-        if (privateInp) {
-            privateInp.focus();
-        }
+        if (privateInp) privateInp.focus();
     }, 100);
 }
 
 function loadPrivateChatHistory(targetSocketId) {
     const msgContainer = document.getElementById('private-messages');
     msgContainer.innerHTML = '';
-
     const history = pmChatHistories[targetSocketId] || [];
     history.forEach(item => {
         renderSinglePrivateMsg(item.sender, item.msg, item.image, item.isMe);
@@ -356,7 +344,6 @@ function sendPrivateMessage() {
             targetSocketId: currentPrivateTargetId, 
             message: msg 
         });
-        
         saveAndAppendPrivateMsg(currentPrivateTargetId, 'أنت', msg, null, true);
         privateInp.value = '';
         privateInp.focus();
@@ -441,7 +428,6 @@ function makeModalDraggable(elmnt) {
     function dragMouseDown(e) {
         e = e || window.event;
         if (e.target.tagName === 'BUTTON') return;
-        
         pos3 = e.clientX;
         pos4 = e.clientY;
         document.onmouseup = closeDragElement;
