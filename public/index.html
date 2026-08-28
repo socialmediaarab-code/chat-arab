@@ -16,6 +16,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            overflow: hidden;
         }
 
         #auth-screen {
@@ -124,7 +125,6 @@
         }
         .user-item:hover { background: rgba(255,255,255,0.2); }
 
-        /* عداد الرسائل الخاصة */
         .unread-badge {
             background: #ff4757;
             color: white;
@@ -176,19 +176,18 @@
             border: 1px solid #ccc;
         }
 
-        /* نافذة المحادثة الخاصة المنفصلة (Popup Modal) */
+        /* نافذة المحادثة الخاصة المنفصلة وقابلة للتحريك بحرية (يمين، يسار، فوق، تحت) */
         #private-chat-modal {
             display: none;
             position: fixed;
-            bottom: 0;
-            right: 20px;
+            top: 100px;
+            right: 100px;
             width: 340px;
             height: 420px;
             background: white;
             border: 1px solid #ccc;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
+            border-radius: 10px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.3);
             flex-direction: column;
             z-index: 1000;
         }
@@ -202,6 +201,8 @@
             align-items: center;
             border-top-left-radius: 10px;
             border-top-right-radius: 10px;
+            cursor: move; /* مؤشر السحب لتوضيح إمكانية التحكم بمكان النافذة */
+            user-select: none;
         }
 
         .private-messages {
@@ -217,6 +218,8 @@
             background: #ddd;
             display: flex;
             gap: 5px;
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
         }
 
         .private-input-area input {
@@ -285,7 +288,7 @@
             <div>مرحباً، <span id="current-user-display" style="font-weight: bold; color: #7ab51d;"></span> | <button onclick="location.reload()" style="background:#ff6b6b; border:none; color:white; padding:5px 10px; border-radius:5px; cursor:pointer;">خروج</button></div>
         </div>
         <div class="chat-container">
-            <!-- قائمة الجانب (المتواجدون + صندوق الرسائل الخاصة مع العدادات) -->
+            <!-- القائمة الجانبية: صندوق الرسائل الخاصة مع العدادات + المتواجدون -->
             <div class="sidebar">
                 <div>
                     <div class="section-title">📬 الرسائل الخاصة</div>
@@ -313,9 +316,9 @@
         </div>
     </div>
 
-    <!-- نافذة المحادثة الخاصة المنفصلة (Popup) -->
+    <!-- نافذة المحادثة الخاصة المنفصلة وقابلة للتحريك -->
     <div id="private-chat-modal">
-        <div class="private-header">
+        <div class="private-header" id="private-modal-header">
             <span id="private-target-title">محادثة خاصة</span>
             <button onclick="closePrivateModal()" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;">✖</button>
         </div>
@@ -334,9 +337,37 @@
         let socket;
         let activePrivateSocketId = null;
         let activePrivateUsername = '';
-        
-        // نظام لتخزين الرسائل الخاصة والعدادات لكل مستخدم
-        let privateChatsData = {}; // { socketId: { username: '...', messages: [...], unreadCount: 0 } }
+        let privateChatsData = {};
+
+        // كود سحب وتحريك النافذة الخاصة (Draggable Modal) يميناً ويساراً وفوق وتحت
+        const modal = document.getElementById('private-chat-modal');
+        const header = document.getElementById('private-modal-header');
+        let isDragging = false, startX, startY, initialX, initialY;
+
+        header.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = modal.offsetLeft;
+            initialY = modal.offsetTop;
+            document.addEventListener('mousemove', dragModal);
+            document.addEventListener('mouseup', stopDragging);
+        });
+
+        function dragModal(e) {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            modal.style.left = `${initialX + dx}px`;
+            modal.style.top = `${initialY + dy}px`;
+            modal.style.right = 'auto';
+        }
+
+        function stopDragging() {
+            isDragging = false;
+            document.removeEventListener('mousemove', dragModal);
+            document.removeEventListener('mouseup', stopDragging);
+        }
 
         function showForm(type) {
             document.getElementById('main-auth-buttons').style.display = 'none';
@@ -424,18 +455,15 @@
                 box.scrollTop = box.scrollHeight;
             });
 
-            // استقبال رسائل خاصة وتحديث العدادات في مربع الرسائل الخاصة
             socket.on('receive_private_msg', (data) => {
                 if (!privateChatsData[data.senderId]) {
                     privateChatsData[data.senderId] = { username: data.senderName, messages: [], unreadCount: 0 };
                 }
                 privateChatsData[data.senderId].messages.push({ sender: data.senderName, message: data.message, image: data.image });
                 
-                // إذا لم تكن نافذة المحادثة الخاصة مفتوحة مع هذا الشخص، قم بزيادة عداد الرسائل غير المقروءة
                 if (activePrivateSocketId !== data.senderId) {
                     privateChatsData[data.senderId].unreadCount += 1;
                 } else {
-                    // إذا كانت النافذة مفتوحة، قم بعرض الرسالة مباشرة
                     appendPrivateMessageUI(data.senderName, data.message, data.image, false);
                 }
                 renderPrivateConversationsList();
@@ -466,7 +494,6 @@
             });
         }
 
-        // تحديث وتجهيز صندوق الرسائل الخاصة الجانبي مع العدادات
         function renderPrivateConversationsList() {
             const container = document.getElementById('private-conversations-list');
             container.innerHTML = '';
@@ -493,13 +520,11 @@
             if (!privateChatsData[socketId]) {
                 privateChatsData[socketId] = { username: targetName, messages: [], unreadCount: 0 };
             }
-            // تصفير عداد الرسائل غير المقروءة عند فتح المحادثة
             privateChatsData[socketId].unreadCount = 0;
             renderPrivateConversationsList();
 
             document.getElementById('private-target-title').innerText = `محادثة خاصة: ${targetName}`;
             
-            // تعبئة الرسائل السابقة لهذه المحادثة
             const pBox = document.getElementById('private-messages-box');
             pBox.innerHTML = '';
             privateChatsData[socketId].messages.forEach(m => {
@@ -551,7 +576,6 @@
 
             socket.emit('send_private_msg', { targetSocketId: activePrivateSocketId, message: text });
             
-            // حفظ الرسالة في السجل المحلي وإضافتها للواجهة
             privateChatsData[activePrivateSocketId].messages.push({ sender: 'أنت', message: text });
             appendPrivateMessageUI('أنت', text, null, true);
             
