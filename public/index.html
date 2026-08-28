@@ -3,136 +3,272 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شات العرب</title>
+    <title>شات العرب - تسجيل الدخول</title>
+    <!-- مكتبة Google Sign-In -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #f4f7f6; display: flex; flex-direction: column; height: 100vh; }
-        
-        #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; }
-        .auth-card { background: #fff; padding: 30px; border-radius: 10px; width: 350px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
-        .auth-card h2 { margin-bottom: 20px; color: #1e3c72; }
-        .auth-card input { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
-        .auth-card button { width: 100%; padding: 10px; background: #1e3c72; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
-        .auth-card button:hover { background: #2a5298; }
-        .switch-auth { font-size: 13px; color: #666; cursor: pointer; margin-top: 10px; }
-        .switch-auth:hover { color: #1e3c72; text-decoration: underline; }
-        .error-msg { color: red; font-size: 12px; margin-bottom: 10px; display: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Tahoma, sans-serif;
+            background: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1920&q=80') no-repeat center center fixed;
+            background-size: cover;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-        header { background: #1e3c72; color: #fff; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .container { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 250px; background: #fff; border-left: 1px solid #ddd; padding: 15px; overflow-y: auto; }
-        .main-chat { flex: 1; display: flex; flex-direction: column; background: #fafafa; }
-        .messages-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .input-box { padding: 10px 15px; background: #fff; border-top: 1px solid #ddd; display: flex; gap: 8px; align-items: center; position: relative; }
-        input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; font-size: 14px; }
-        button, .icon-btn { padding: 9px 15px; background: #1e3c72; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
-        button:hover, .icon-btn:hover { background: #2a5298; }
-        .user-item { padding: 8px 12px; margin-bottom: 5px; background: #eef2f5; border-radius: 5px; cursor: pointer; transition: 0.2s; font-size: 14px; }
-        .user-item:hover { background: #dce4ec; }
-        .msg { background: #fff; padding: 10px 14px; border-radius: 8px; max-width: 70%; border: 1px solid #eee; word-break: break-word; }
-        .msg.me { align-self: flex-end; background: #dcf8c6; }
-        .chat-img { max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 5px; display: block; }
+        /* شاشة تسجيل الدخول */
+        #auth-screen {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            width: 350px;
+            backdrop-filter: blur(5px);
+        }
 
-        .emoji-picker-box { display: none; position: absolute; bottom: 55px; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 8px; width: 220px; gap: 5px; flex-wrap: wrap; box-shadow: 0 4px 10px rgba(0,0,0,0.15); z-index: 1001; }
-        .emoji-picker-box span { cursor: pointer; font-size: 20px; padding: 3px; border-radius: 4px; }
-        .emoji-picker-box span:hover { background: #eee; }
+        .auth-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+            transition: 0.3s;
+        }
 
-        #pm-inbox-modal { display: none; position: fixed; top: 15%; left: 50%; transform: translateX(-50%); width: 320px; background: #fff; border-radius: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); z-index: 1005; overflow: hidden; }
-        .pm-inbox-header { background: #1e3c72; color: #fff; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 14px; }
-        .pm-inbox-header .clear-btn { background: transparent; border: none; color: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 4px; }
-        .pm-inbox-list { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; }
-        .pm-inbox-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s; }
-        .pm-inbox-item:hover { background: #f0f4f8; }
-        .pm-inbox-close { color: #888; font-size: 16px; cursor: pointer; padding: 2px 6px; }
-        .pm-inbox-close:hover { color: #d9534f; }
+        .google-btn { background-color: #1a4b84; border: 2px solid #f39c12; }
+        .guest-btn { background-color: #0b2535; }
+        .member-btn { background-color: #7ab51d; }
 
-        #private-chat-modal { display: none; position: fixed; top: 100px; left: 100px; width: 350px; background: #fff; border: 1px solid #ccc; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1000; overflow: hidden; }
-        #private-modal-header { background: #1e3c72; color: #fff; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none; }
+        .auth-btn:hover { opacity: 0.9; transform: scale(1.02); }
+
+        /* نواذج إدخال البيانات الإضافية */
+        .input-form {
+            display: none;
+            margin-top: 15px;
+            text-align: right;
+        }
+
+        .input-form input, .input-form select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        .back-link {
+            color: #ddd;
+            cursor: pointer;
+            margin-top: 10px;
+            display: inline-block;
+            font-size: 14px;
+        }
+
+        #auth-error {
+            color: #ff6b6b;
+            margin-top: 10px;
+            font-size: 14px;
+            display: none;
+        }
+
+        /* شاشة الشات (مخفية حتى يتم تسجيل الدخول) */
+        #chat-screen {
+            display: none;
+            width: 100%;
+            height: 100vh;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+        }
     </style>
 </head>
 <body>
 
+    <!-- شاشة تسجيل الدخول -->
     <div id="auth-screen">
-        <div class="auth-card">
-            <h2 id="auth-title">تسجيل الدخول</h2>
-            <div id="auth-error" class="error-msg"></div>
-            
-            <div id="register-name-field" style="display: none;">
-                <input type="text" id="reg-username" placeholder="اسم المستخدم" />
-            </div>
-            <input type="email" id="auth-email" placeholder="البريد الإلكتروني" />
-            <input type="password" id="auth-password" placeholder="كلمة المرور" />
-            
-            <button id="auth-submit-btn" onclick="submitAuthForm()">دخول</button>
-            <div class="switch-auth" id="switch-mode-btn" onclick="toggleAuthMode()">ليس لديك حساب؟ إنشاء حساب جديد</div>
-
-            <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
-
+        <h2 style="color: white; margin-bottom: 20px;" id="auth-title">منصة شات العرب</h2>
+        
+        <!-- الأزرار الرئيسية كما طلبتها -->
+        <div id="main-auth-buttons">
+            <!-- زر جوجل -->
             <div id="g_id_onload"
                  data-client_id="593400807452-hasied40uonfha4fh157c7vtb0tibkk4.apps.googleusercontent.com"
                  data-callback="handleGoogleSignIn"
                  data-auto_prompt="false">
             </div>
-            <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large" data-locale="ar"></div>
+            <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_blue" data-text="signin_with" data-size="large" data-locale="ar" style="margin-bottom: 10px; display: flex; justify-content: center;"></div>
+
+            <button class="auth-btn guest-btn" onclick="showForm('guest')">🕵️ دخول / كضيوف</button>
+            <button class="auth-btn member-btn" onclick="showForm('member')">👤 دخول الأعضاء</button>
         </div>
+
+        <!-- نموذج بيانات الزائر -->
+        <div id="guest-form" class="input-form">
+            <input type="text" id="guest-name" placeholder="أدخل اسمك المستعار">
+            <input type="number" id="guest-age" placeholder="العمر">
+            <select id="guest-gender">
+                <option value="ذكر">ذكر</option>
+                <option value="أنثى">أنثى</option>
+            </select>
+            <button class="auth-btn guest-btn" onclick="submitGuest()">دخول كزائر</button>
+            <span class="back-link" onclick="goBack()">إرجاع</span>
+        </div>
+
+        <!-- نموذج بيانات عضوية جوجل الإضافية (الاسم، العمر، الجنس) -->
+        <div id="google-extra-form" class="input-form">
+            <p style="color: #fff; font-size: 13px;">أكمل بيانات حساب جوجل الخاص بك:</p>
+            <input type="text" id="google-custom-name" placeholder="الاسم في الشات">
+            <input type="number" id="google-age" placeholder="العمر">
+            <select id="google-gender">
+                <option value="ذكر">ذكر</option>
+                <option value="أنثى">أنثى</option>
+            </select>
+            <button class="auth-btn google-btn" onclick="submitGoogleExtra()">متابعة الدخول</button>
+        </div>
+
+        <!-- نموذج دخول الأعضاء التقليدي (بالبريد وكلمة المرور) -->
+        <div id="member-form" class="input-form">
+            <input type="email" id="auth-email" placeholder="البريد الإلكتروني">
+            <input type="password" id="auth-password" placeholder="كلمة المرور">
+            <input type="text" id="reg-username" placeholder="الاسم (في حال تسجيل جديد)">
+            <button class="auth-btn member-btn" onclick="submitAuthForm()">دخول / تسجيل</button>
+            <span class="back-link" onclick="goBack()">إرجاع</span>
+        </div>
+
+        <div id="auth-error"></div>
     </div>
 
-    <header>
-        <h2>شات العرب (<span id="current-user-display"></span>)</h2>
-        <div id="pm-notification-btn" onclick="togglePmInboxModal()" style="position: relative; cursor: pointer; font-size: 15px;">
-            <span>✉️ الرسائل الخاصّة</span>
-            <span id="pm-badge" style="display: none; position: absolute; top: -8px; right: -12px; background: red; color: white; border-radius: 50%; padding: 2px 7px; font-size: 11px; font-weight: bold;">0</span>
+    <!-- شاشة الشات الرئيسية -->
+    <div id="chat-screen" style="display: none;">
+        <div style="background: #0b2535; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <h3>غرفة الدردشة العامة</h3>
+            <div>مرحباً، <span id="current-user-display" style="font-weight: bold; color: #7ab51d;"></span></div>
         </div>
-    </header>
-
-    <div class="container">
-        <div class="sidebar">
-            <h3 style="font-size: 16px; margin-bottom: 10px;">المتصلون الآن</h3>
-            <div id="users-list"></div>
-        </div>
-
-        <div class="main-chat">
-            <div class="messages-box" id="public-messages"></div>
-            <div id="typing-indicator" style="font-style: italic; color: #888; height: 20px; font-size: 0.85em; padding: 0 20px;"></div>
-            
-            <div class="input-box">
-                <div id="public-emoji-list" class="emoji-picker-box" style="right: 15px;"></div>
-                <button type="button" onclick="toggleEmojiPicker('public-emoji-list')" class="icon-btn" style="background: #f0f0f0; color: #333;">😀</button>
-                <label for="public-file-input" class="icon-btn" style="cursor: pointer;">📷</label>
-                <input type="file" id="public-file-input" accept="image/*" style="display: none;" onchange="sendPublicImage(this)" />
-                <input type="text" id="public-input" placeholder="اكتب رسالتك هنا..." />
-                <button type="button" onclick="sendPublicMessage()">إرسال</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="pm-inbox-modal">
-        <div class="pm-inbox-header">
-            <span style="cursor: pointer;" onclick="togglePmInboxModal()">✖</span>
-            <button class="clear-btn" onclick="clearAllPmConversations()">Clear 🗑️</button>
-        </div>
-        <div id="pm-inbox-list" class="pm-inbox-list"></div>
-    </div>
-
-    <div id="private-chat-modal">
-        <div id="private-modal-header">
-            <span id="private-target-name">محادثة خاصة</span>
-            <button type="button" onclick="closePrivateModal()" style="background: transparent; border: none; color: #fff; font-size: 16px; cursor: pointer;">✕</button>
-        </div>
-        <div id="private-messages" style="height: 250px; padding: 10px; overflow-y: auto; background: #f9f9f9; display: flex; flex-direction: column; gap: 8px;"></div>
-        
-        <div style="display: flex; padding: 8px; border-top: 1px solid #eee; background: #fff; gap: 5px; align-items: center; position: relative;">
-            <div id="private-emoji-list" class="emoji-picker-box" style="right: 8px;"></div>
-            <button type="button" onclick="toggleEmojiPicker('private-emoji-list')" class="icon-btn" style="background: #f0f0f0; color: #333; padding: 6px 10px;">😀</button>
-            <label for="private-file-input" class="icon-btn" style="cursor: pointer; padding: 6px 10px; background: #eee; color: #333;">📷</label>
-            <input type="file" id="private-file-input" accept="image/*" style="display: none;" onchange="sendPrivateImage(this)" />
-            <input type="text" id="private-input" placeholder="اكتب رسالة خاصة..." style="flex: 1; border: 1px solid #ddd; padding: 8px; border-radius: 5px; outline: none; font-size: 13px;" />
-            <button type="button" onclick="sendPrivateMessage()" style="padding: 8px 12px; font-size: 13px;">إرسال</button>
+        <div id="public-messages" style="flex: 1; padding: 15px; overflow-y: auto; background: #f4f4f4;"></div>
+        <div style="padding: 10px; background: #ddd; display: flex;">
+            <input type="text" id="public-input" placeholder="اكتب رسالتك هنا..." style="flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            <button onclick="sendPublicMessage()" style="padding: 10px 20px; background: #1a4b84; color: white; border: none; border-radius: 5px; margin-right: 5px; cursor: pointer;">إرسال</button>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
+    <script>
+        let googlePayloadTemp = null;
+
+        function showForm(type) {
+            document.getElementById('main-auth-buttons').style.display = 'none';
+            document.getElementById('guest-form').style.display = 'none';
+            document.getElementById('member-form').style.display = 'none';
+            document.getElementById('google-extra-form').style.display = 'none';
+
+            if (type === 'guest') document.getElementById('guest-form').style.display = 'block';
+            if (type === 'member') document.getElementById('member-form').style.display = 'block';
+        }
+
+        function goBack() {
+            document.getElementById('main-auth-buttons').style.display = 'block';
+            document.getElementById('guest-form').style.display = 'none';
+            document.getElementById('member-form').style.display = 'none';
+            document.getElementById('google-extra-form').style.display = 'none';
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        function handleGoogleSignIn(response) {
+            // حفظ التوكن مؤقتاً وإظهار نموذج إدخال العمر والجنس والاسم
+            googlePayloadTemp = response.credential;
+            document.getElementById('main-auth-buttons').style.display = 'none';
+            document.getElementById('google-extra-form').style.display = 'block';
+        }
+
+        function submitGoogleExtra() {
+            const name = document.getElementById('google-custom-name').value.trim();
+            const age = document.getElementById('google-age').value.trim();
+            const gender = document.getElementById('google-gender').value;
+            const errorDiv = document.getElementById('auth-error');
+
+            if (!name || !age) {
+                errorDiv.innerText = 'الرجاء إدخال الاسم والعمر';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            fetch('/api/google-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: googlePayloadTemp, username: name, age, gender })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    startChatSession(data.username);
+                } else {
+                    errorDiv.innerText = data.message || 'فشل تسجيل الدخول';
+                    errorDiv.style.display = 'block';
+                }
+            });
+        }
+
+        function submitGuest() {
+            const name = document.getElementById('guest-name').value.trim();
+            const age = document.getElementById('guest-age').value.trim();
+            const gender = document.getElementById('guest-gender').value;
+            const errorDiv = document.getElementById('auth-error');
+
+            if (!name || !age) {
+                errorDiv.innerText = 'الرجاء كتابة الاسم والعمر';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            fetch('/api/guest-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: name, age, gender })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    startChatSession(data.username);
+                } else {
+                    errorDiv.innerText = data.message;
+                    errorDiv.style.display = 'block';
+                }
+            });
+        }
+
+        function startChatSession(username) {
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('chat-screen').style.display = 'flex';
+            document.getElementById('current-user-display').innerText = username;
+            
+            const socket = io();
+            socket.emit('join_room', { username, room: 'general' });
+
+            socket.on('chat_message', (data) => {
+                const box = document.getElementById('public-messages');
+                box.innerHTML += `<div><strong>${data.username || 'نظام'}:</strong> ${data.message || data.text}</div>`;
+                box.scrollTop = box.scrollHeight;
+            });
+
+            window.sendPublicMessage = function() {
+                const input = document.getElementById('public-input');
+                if(input.value.trim()) {
+                    socket.emit('send_message', { room: 'general', message: input.value });
+                    input.value = '';
+                }
+            };
+        }
+    </script>
 </body>
 </html>
