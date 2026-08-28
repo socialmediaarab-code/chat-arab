@@ -145,7 +145,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         if (socket.username) {
-            io.emit('chat_message', { system: type = true, message: `غادر ${socket.username} الغرفة` });
+            io.emit('chat_message', { system: true, message: `غادر ${socket.username} الغرفة` });
             updateActiveUsers(io, 'general');
         }
     });
