@@ -5,7 +5,9 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    maxHttpBufferSize: 1e7 // السماح برفع صور حتى 10 ميجابايت
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -16,15 +18,13 @@ app.get('/', (req, res) => {
 const users = {};
 
 io.on('connection', (socket) => {
-    console.log('مستخدم جديد اتصل:', socket.id);
-
-    // تسجيل اسم المستخدم
+    // تسجيل انضمام المستخدم
     socket.on('join_room', (data) => {
         socket.username = data.username;
         socket.room = data.room || 'general';
         socket.join(socket.room);
 
-        users[socket.id] = { username: data.username, room: socket.room };
+        users[socket.id] = { id: socket.id, username: data.username, room: socket.room };
         
         io.to(socket.room).emit('update_users', Object.values(users));
         socket.to(socket.room).emit('chat_message', {
@@ -33,7 +33,7 @@ io.on('connection', (socket) => {
         });
     });
 
-    // إرسال رسالة عامة
+    // إرسال رسالة عامة (نص وصورة)
     socket.on('send_message', (data) => {
         io.to(data.room).emit('chat_message', {
             username: socket.username,
@@ -42,12 +42,13 @@ io.on('connection', (socket) => {
         });
     });
 
-    // إرسال رسالة خاصة
+    // إرسال رسالة خاصة (نص وصورة)
     socket.on('send_private_msg', (data) => {
         io.to(data.targetSocketId).emit('receive_private_msg', {
             senderId: socket.id,
             senderName: socket.username,
-            message: data.message
+            message: data.message,
+            image: data.image || null
         });
     });
 
@@ -60,7 +61,7 @@ io.on('connection', (socket) => {
         socket.to(data.room).emit('hide_typing');
     });
 
-    // عند القطع
+    // خروج المستخدم
     socket.on('disconnect', () => {
         if (socket.username) {
             delete users[socket.id];
