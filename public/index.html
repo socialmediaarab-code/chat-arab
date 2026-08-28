@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>شات العرب - المحادثة الجماعية والخاصة</title>
-    <!-- مكتبة Google Sign-In -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         body {
@@ -19,7 +18,6 @@
             align-items: center;
         }
 
-        /* شاشة تسجيل الدخول */
         #auth-screen {
             background: rgba(0, 0, 0, 0.7);
             padding: 30px;
@@ -153,6 +151,56 @@
             border-radius: 5px;
             border: 1px solid #ccc;
         }
+
+        /* نافذة المحادثة الخاصة المنفصلة (Popup Modal) */
+        #private-chat-modal {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            right: 20px;
+            width: 320px;
+            height: 400px;
+            background: white;
+            border: 1px solid #ccc;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.2);
+            flex-direction: column;
+            z-index: 1000;
+        }
+
+        .private-header {
+            background: #1a4b84;
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+
+        .private-messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            background: #f4f4f4;
+            font-size: 14px;
+        }
+
+        .private-input-area {
+            padding: 8px;
+            background: #ddd;
+            display: flex;
+            gap: 5px;
+        }
+
+        .private-input-area input {
+            flex: 1;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -173,7 +221,6 @@
             <button class="auth-btn member-btn" onclick="showForm('member')">👤 دخول الأعضاء</button>
         </div>
 
-        <!-- نموذج الزائر -->
         <div id="guest-form" class="input-form">
             <input type="text" id="guest-name" placeholder="أدخل اسمك المستعار">
             <input type="number" id="guest-age" placeholder="العمر">
@@ -185,7 +232,6 @@
             <span class="back-link" onclick="goBack()">إرجاع</span>
         </div>
 
-        <!-- نموذج بيانات جوجل الإضافية -->
         <div id="google-extra-form" class="input-form">
             <p style="color: #fff; font-size: 13px;">أكمل بيانات حسابك:</p>
             <input type="text" id="google-custom-name" placeholder="الاسم في الشات">
@@ -197,7 +243,6 @@
             <button class="auth-btn google-btn" onclick="submitGoogleExtra()">متابعة الدخول</button>
         </div>
 
-        <!-- نموذج الأعضاء التقليدي -->
         <div id="member-form" class="input-form">
             <input type="email" id="auth-email" placeholder="البريد الإلكتروني">
             <input type="password" id="auth-password" placeholder="كلمة المرور">
@@ -209,10 +254,10 @@
         <div id="auth-error"></div>
     </div>
 
-    <!-- شاشة الشات الكاملة -->
+    <!-- شاشة الشات الرئيسية -->
     <div id="chat-screen">
         <div style="background: #0b2535; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
-            <h3 id="room-title">غرفة الدردشة العامة</h3>
+            <h3>غرفة الدردشة العامة</h3>
             <div>مرحباً، <span id="current-user-display" style="font-weight: bold; color: #7ab51d;"></span> | <button onclick="location.reload()" style="background:#ff6b6b; border:none; color:white; padding:5px 10px; border-radius:5px; cursor:pointer;">خروج</button></div>
         </div>
         <div class="chat-container">
@@ -221,11 +266,10 @@
                 <h4>المتواجدون</h4>
                 <div id="users-list"></div>
             </div>
-            <!-- منطقة الرسائل -->
+            <!-- منطقة الرسائل العامة -->
             <div class="chat-main">
                 <div id="typing-indicator" style="padding: 5px 15px; font-size: 12px; color: #666; font-style: italic;"></div>
                 <div id="messages-box" class="messages-area"></div>
-                <!-- إدخال الرسائل والصور والإيموجيات -->
                 <div class="input-area">
                     <input type="text" id="message-input" placeholder="اكتب رسالتك أو ضع إيموجي هنا...">
                     <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="sendImage(this)">
@@ -236,18 +280,33 @@
         </div>
     </div>
 
+    <!-- نافذة المحادثة الخاصة المنفصلة (Popup) -->
+    <div id="private-chat-modal">
+        <div class="private-header">
+            <span id="private-target-title">محادثة خاصة</span>
+            <button onclick="closePrivateModal()" style="background:none; border:none; color:white; font-size:16px; cursor:pointer;">✖</button>
+        </div>
+        <div id="private-messages-box" class="private-messages"></div>
+        <div class="private-input-area">
+            <input type="text" id="private-message-input" placeholder="اكتب رسالة خاصة...">
+            <input type="file" id="private-image-input" accept="image/*" style="display: none;" onchange="sendPrivateImage(this)">
+            <button onclick="document.getElementById('private-image-input').click()" style="background:#6c757d; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer;">🖼️</button>
+            <button onclick="sendPrivateMessage()" style="background:#1a4b84; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer;">إرسال</button>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         let googlePayloadTemp = null;
         let socket;
-        let currentTargetSocketId = null; // للمحادثة الخاصة
+        let activePrivateSocketId = null;
+        let activePrivateUsername = '';
 
         function showForm(type) {
             document.getElementById('main-auth-buttons').style.display = 'none';
             document.getElementById('guest-form').style.display = 'none';
             document.getElementById('member-form').style.display = 'none';
             document.getElementById('google-extra-form').style.display = 'none';
-
             if (type === 'guest') document.getElementById('guest-form').style.display = 'block';
             if (type === 'member') document.getElementById('member-form').style.display = 'block';
         }
@@ -271,20 +330,12 @@
             const age = document.getElementById('google-age').value.trim();
             const gender = document.getElementById('google-gender').value;
             const errorDiv = document.getElementById('auth-error');
-
-            if (!name || !age) {
-                errorDiv.innerText = 'الرجاء إدخال الاسم والعمر';
-                errorDiv.style.display = 'block';
-                return;
-            }
-
+            if (!name || !age) { errorDiv.innerText = 'الرجاء إدخال الاسم والعمر'; errorDiv.style.display = 'block'; return; }
             fetch('/api/google-login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token: googlePayloadTemp, username: name, age, gender })
-            })
-            .then(res => res.json())
-            .then(data => {
+            }).then(res => res.json()).then(data => {
                 if (data.success) initChat(data.username);
                 else { errorDiv.innerText = data.message; errorDiv.style.display = 'block'; }
             });
@@ -295,20 +346,12 @@
             const age = document.getElementById('guest-age').value.trim();
             const gender = document.getElementById('guest-gender').value;
             const errorDiv = document.getElementById('auth-error');
-
-            if (!name || !age) {
-                errorDiv.innerText = 'الرجاء كتابة الاسم والعمر';
-                errorDiv.style.display = 'block';
-                return;
-            }
-
+            if (!name || !age) { errorDiv.innerText = 'الرجاء كتابة الاسم والعمر'; errorDiv.style.display = 'block'; return; }
             fetch('/api/guest-login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: name, age, gender })
-            })
-            .then(res => res.json())
-            .then(data => {
+            }).then(res => res.json()).then(data => {
                 if (data.success) initChat(data.username);
                 else { errorDiv.innerText = data.message; errorDiv.style.display = 'block'; }
             });
@@ -319,14 +362,11 @@
             const password = document.getElementById('auth-password').value.trim();
             const username = document.getElementById('reg-username').value.trim();
             const errorDiv = document.getElementById('auth-error');
-
             fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password, username })
-            })
-            .then(res => res.json())
-            .then(data => {
+            }).then(res => res.json()).then(data => {
                 if (data.success) initChat(data.username);
                 else { errorDiv.innerText = data.message; errorDiv.style.display = 'block'; }
             });
@@ -348,20 +388,24 @@
                 box.scrollTop = box.scrollHeight;
             });
 
+            // استقبال رسائل خاصة وفتح النافذة المنفصلة تلقائياً
             socket.on('receive_private_msg', (data) => {
-                const box = document.getElementById('messages-box');
-                let content = `<strong style="color: #d9534f;">[خاص من ${data.senderName}]:</strong> ${data.message || ''}`;
-                if (data.image) content += `<br><img src="${data.image}" style="max-width:200px; border-radius:5px; margin-top:5px;">`;
-                box.innerHTML += `<div class="message-bubble" style="background:#fce8e6;">${content}</div>`;
-                box.scrollTop = box.scrollHeight;
+                if (activePrivateSocketId !== data.senderId) {
+                    openPrivateChatModal(data.senderId, data.senderName);
+                }
+                const pBox = document.getElementById('private-messages-box');
+                let content = `<strong>${data.senderName}:</strong> ${data.message || ''}`;
+                if (data.image) content += `<br><img src="${data.image}" style="max-width:150px; border-radius:5px; margin-top:5px;">`;
+                pBox.innerHTML += `<div class="message-bubble" style="background:#fff; border:1px solid #ddd;">${content}</div>`;
+                pBox.scrollTop = pBox.scrollHeight;
             });
 
             socket.on('update_users', (users) => {
                 const list = document.getElementById('users-list');
-                list.innerHTML = `<div class="user-item" onclick="setPublicChat()">💬 الغرفة العامة</div>`;
+                list.innerHTML = '';
                 users.forEach(u => {
                     if (u.username !== username) {
-                        list.innerHTML += `<div class="user-item" onclick="startPrivateChat('${u.id}', '${u.username}')">👤 ${u.username} (مراسلة خاصة)</div>`;
+                        list.innerHTML += `<div class="user-item" onclick="openPrivateChatModal('${u.id}', '${u.username}')">👤 ${u.username}</div>`;
                     }
                 });
             });
@@ -381,30 +425,23 @@
             });
         }
 
-        function setPublicChat() {
-            currentTargetSocketId = null;
-            document.getElementById('room-title').innerText = 'غرفة الدردشة العامة';
+        function openPrivateChatModal(socketId, targetName) {
+            activePrivateSocketId = socketId;
+            activePrivateUsername = targetName;
+            document.getElementById('private-target-title').innerText = `محادثة خاصة: ${targetName}`;
+            document.getElementById('private-chat-modal').style.display = 'flex';
         }
 
-        function startPrivateChat(socketId, targetName) {
-            currentTargetSocketId = socketId;
-            document.getElementById('room-title').innerText = `محادثة خاصة مع: ${targetName}`;
-            alert(`تم الانتقال للوضع الخاص مع ${targetName}`);
+        function closePrivateModal() {
+            document.getElementById('private-chat-modal').style.display = 'none';
+            activePrivateSocketId = null;
         }
 
         function sendMessage() {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
             if (!text) return;
-
-            if (currentTargetSocketId) {
-                socket.emit('send_private_msg', { targetSocketId: currentTargetSocketId, message: text });
-                const box = document.getElementById('messages-box');
-                box.innerHTML += `<div class="message-bubble my-msg"><strong>أنت (خاص):</strong> ${text}</div>`;
-                box.scrollTop = box.scrollHeight;
-            } else {
-                socket.emit('send_message', { room: 'general', message: text });
-            }
+            socket.emit('send_message', { room: 'general', message: text });
             input.value = '';
         }
 
@@ -413,14 +450,33 @@
             if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
-                const base64Image = e.target.result;
-                if (currentTargetSocketId) {
-                    socket.emit('send_private_msg', { targetSocketId: currentTargetSocketId, image: base64Image });
-                    const box = document.getElementById('messages-box');
-                    box.innerHTML += `<div class="message-bubble my-msg"><strong>أنت (خاص):</strong><br><img src="${base64Image}" style="max-width:200px; border-radius:5px;"></div>`;
-                } else {
-                    socket.emit('send_message', { room: 'general', image: base64Image });
-                }
+                socket.emit('send_message', { room: 'general', image: e.target.result });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function sendPrivateMessage() {
+            const input = document.getElementById('private-message-input');
+            const text = input.value.trim();
+            if (!text || !activePrivateSocketId) return;
+
+            socket.emit('send_private_msg', { targetSocketId: activePrivateSocketId, message: text });
+            const pBox = document.getElementById('private-messages-box');
+            pBox.innerHTML += `<div class="message-bubble my-msg"><strong>أنت:</strong> ${text}</div>`;
+            pBox.scrollTop = pBox.scrollHeight;
+            input.value = '';
+        }
+
+        function sendPrivateImage(inputElement) {
+            const file = inputElement.files[0];
+            if (!file || !activePrivateSocketId) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Img = e.target.result;
+                socket.emit('send_private_msg', { targetSocketId: activePrivateSocketId, image: base64Img });
+                const pBox = document.getElementById('private-messages-box');
+                pBox.innerHTML += `<div class="message-bubble my-msg"><strong>أنت:</strong><br><img src="${base64Img}" style="max-width:150px; border-radius:5px;"></div>`;
+                pBox.scrollTop = pBox.scrollHeight;
             };
             reader.readAsDataURL(file);
         }
