@@ -9,8 +9,11 @@ let currentRoom = 'general';
 let currentPrivateTargetId = null;
 let unreadCount = 0;
 
-// تخزين قائمة المحادثات الخاصة النشطة { socketId: username }
+// قائمة الأشخاص النشطين في الخاص { socketId: username }
 let activePmUsers = {};
+
+// تخزين سجل الرسائل الخاص بكل مستخدم { socketId: [ {sender, msg, image, isMe} ] }
+let pmChatHistories = {};
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣'];
@@ -128,7 +131,7 @@ socket.on('hide_typing', () => {
     if (indicator) indicator.innerText = '';
 });
 
-// --- إدراء قائمة محادثات الخاص (Inbox List) ---
+// --- إدارة قائمة صندوق الخاص (Inbox) ---
 function togglePmInboxModal() {
     const modal = document.getElementById('pm-inbox-modal');
     if (modal.style.display === 'block') {
@@ -172,23 +175,37 @@ function selectUserFromInbox(targetId, username) {
 function removePmConversation(event, targetId) {
     event.stopPropagation();
     delete activePmUsers[targetId];
+    delete pmChatHistories[targetId];
     renderPmInboxList();
+    if (currentPrivateTargetId === targetId) {
+        closePrivateModal();
+    }
 }
 
 function clearAllPmConversations() {
     activePmUsers = {};
+    pmChatHistories = {};
     renderPmInboxList();
     unreadCount = 0;
     updateBadge();
+    closePrivateModal();
 }
 
-// --- الشات الخاص المباشر ---
+// --- الشات الخاص المستقل ---
 function openPrivateChat(targetSocketId, targetUsername) {
     currentPrivateTargetId = targetSocketId;
     activePmUsers[targetSocketId] = targetUsername;
 
+    // إنشاء سجل فارغ للمستخدم إذا لم يكن موجوداً
+    if (!pmChatHistories[targetSocketId]) {
+        pmChatHistories[targetSocketId] = [];
+    }
+
     document.getElementById('private-target-name').innerText = `محادثة مع: ${targetUsername}`;
     
+    // إعادة بناء شاشة المحادثة واستعراض السجل الخاص بهذا المستخدم فقط
+    loadPrivateChatHistory(targetSocketId);
+
     const modal = document.getElementById('private-chat-modal');
     modal.style.display = 'block';
     
@@ -201,6 +218,17 @@ function openPrivateChat(targetSocketId, targetUsername) {
             privateInp.focus();
         }
     }, 100);
+}
+
+function loadPrivateChatHistory(targetSocketId) {
+    const msgContainer = document.getElementById('private-messages');
+    msgContainer.innerHTML = ''; // مسح المحادثة السابقة من الشاشة
+
+    const history = pmChatHistories[targetSocketId] || [];
+    history.forEach(item => {
+        renderSinglePrivateMsg(item.sender, item.msg, item.image, item.isMe);
+    });
+    msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
 function closePrivateModal() {
@@ -218,7 +246,9 @@ function sendPrivateMessage() {
             targetSocketId: currentPrivateTargetId, 
             message: msg 
         });
-        appendPrivateMessage('أنت', msg, null, true);
+        
+        // حفظ الرسالة في سجل المستخدم المستهدف
+        saveAndAppendPrivateMsg(currentPrivateTargetId, 'أنت', msg, null, true);
         privateInp.value = '';
         privateInp.focus();
     }
@@ -241,7 +271,7 @@ function sendPrivateImage(input) {
                 message: '', 
                 image: e.target.result 
             });
-            appendPrivateMessage('أنت', '', e.target.result, true);
+            saveAndAppendPrivateMsg(currentPrivateTargetId, 'أنت', '', e.target.result, true);
             input.value = '';
         };
         reader.readAsDataURL(file);
@@ -251,22 +281,40 @@ function sendPrivateImage(input) {
 socket.on('receive_private_msg', (data) => {
     notificationSound.play().catch(() => {});
     
-    // إضافة المرسل تلقائياً لداخل قائمة المحادثات الخاصة النشطة
     activePmUsers[data.senderId] = data.senderName;
+    
+    if (!pmChatHistories[data.senderId]) {
+        pmChatHistories[data.senderId] = [];
+    }
+
+    // حفظ الرسالة الواردة في سجّل المرسل الخاص فقط
+    pmChatHistories[data.senderId].push({
+        sender: data.senderName,
+        msg: data.message,
+        image: data.image,
+        isMe: false
+    });
 
     const modal = document.getElementById('private-chat-modal');
 
+    // إذا كانت نافذة هذا الشخص مفتوحة حالياً، نقوم بطلب عرض الرسالة
     if (modal.style.display === 'block' && currentPrivateTargetId === data.senderId) {
-        appendPrivateMessage(data.senderName, data.message, data.image, false);
+        renderSinglePrivateMsg(data.senderName, data.message, data.image, false);
     } else {
         unreadCount++;
         updateBadge();
-        openPrivateChat(data.senderId, data.senderName);
-        appendPrivateMessage(data.senderName, data.message, data.image, false);
     }
 });
 
-function appendPrivateMessage(sender, msg, image, isMe) {
+function saveAndAppendPrivateMsg(targetId, sender, msg, image, isMe) {
+    if (!pmChatHistories[targetId]) {
+        pmChatHistories[targetId] = [];
+    }
+    pmChatHistories[targetId].push({ sender, msg, image, isMe });
+    renderSinglePrivateMsg(sender, msg, image, isMe);
+}
+
+function renderSinglePrivateMsg(sender, msg, image, isMe) {
     const msgContainer = document.getElementById('private-messages');
     const msgDiv = document.createElement('div');
     msgDiv.style.alignSelf = isMe ? 'flex-end' : 'flex-start';
