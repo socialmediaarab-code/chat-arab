@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 1e7 // رفع صور حتى 10 ميجابايت
+    maxHttpBufferSize: 1e7
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -15,12 +15,10 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// قائمة المتصلين
 const users = {};
 
 io.on('connection', (socket) => {
 
-    // 1. تسجيل الانضمام
     socket.on('join_room', (data) => {
         socket.username = data.username || 'زائر';
         socket.room = data.room || 'general';
@@ -40,7 +38,6 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 2. إرسال رسالة عامة (نص أو صورة)
     socket.on('send_message', (data) => {
         io.to(data.room).emit('chat_message', {
             username: socket.username,
@@ -49,7 +46,6 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 3. إرسال رسالة خاصة (نص أو صورة)
     socket.on('send_private_msg', (data) => {
         if (data.targetSocketId && io.sockets.sockets.get(data.targetSocketId)) {
             io.to(data.targetSocketId).emit('receive_private_msg', {
@@ -61,7 +57,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. أحداث الكتابة
     socket.on('typing', (data) => {
         socket.to(data.room).emit('display_typing', { username: socket.username });
     });
@@ -70,7 +65,6 @@ io.on('connection', (socket) => {
         socket.to(data.room).emit('hide_typing');
     });
 
-    // 5. الانقطع عن الاتصال
     socket.on('disconnect', () => {
         if (users[socket.id]) {
             const disconnectedUser = users[socket.id];
