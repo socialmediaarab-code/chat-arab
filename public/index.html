@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>شات العرب</title>
-    <!-- استدعاء مكتبة Emoji Button -->
     <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.4/dist/index.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -24,7 +23,6 @@
         .msg.me { align-self: flex-end; background: #dcf8c6; }
         .chat-img { max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 5px; display: block; }
 
-        /* نافذة الخاص المنبثقة */
         #private-chat-modal { display: none; position: fixed; top: 100px; left: 100px; width: 340px; background: #fff; border: 1px solid #ccc; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1000; overflow: hidden; }
         #private-modal-header { background: #1e3c72; color: #fff; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none; }
     </style>
@@ -40,13 +38,11 @@
     </header>
 
     <div class="container">
-        <!-- شريط المتصلين الجانبي -->
         <div class="sidebar">
             <h3 style="font-size: 16px; margin-bottom: 10px;">المتصلون الآن</h3>
             <div id="users-list"></div>
         </div>
 
-        <!-- الشات العام -->
         <div class="main-chat">
             <div class="messages-box" id="public-messages"></div>
             <div id="typing-indicator" style="font-style: italic; color: #888; height: 20px; font-size: 0.85em; padding: 0 20px;"></div>
@@ -55,23 +51,22 @@
                 <label for="public-file-input" class="icon-btn" style="cursor: pointer;">📷</label>
                 <input type="file" id="public-file-input" accept="image/*" style="display: none;" onchange="sendPublicImage(this)" />
                 <input type="text" id="public-input" placeholder="اكتب رسالتك هنا..." />
-                <button onclick="sendPublicMessage()">إرسال</button>
+                <button type="button" onclick="sendPublicMessage()">إرسال</button>
             </div>
         </div>
     </div>
 
-    <!-- نافذة الخاص المنبثقة القابلة للسحب -->
     <div id="private-chat-modal">
         <div id="private-modal-header">
             <span id="private-target-name">محادثة خاصة</span>
-            <button onclick="closePrivateModal()" style="background: transparent; border: none; color: #fff; font-size: 16px; cursor: pointer;">✕</button>
+            <button type="button" onclick="closePrivateModal()" style="background: transparent; border: none; color: #fff; font-size: 16px; cursor: pointer;">✕</button>
         </div>
         <div id="private-messages" style="height: 250px; padding: 10px; overflow-y: auto; background: #f9f9f9; display: flex; flex-direction: column; gap: 8px;"></div>
         <div style="display: flex; padding: 8px; border-top: 1px solid #eee; background: #fff; gap: 5px; align-items: center;">
             <label for="private-file-input" class="icon-btn" style="cursor: pointer; padding: 6px 10px; background: #eee; color: #333;">📷</label>
             <input type="file" id="private-file-input" accept="image/*" style="display: none;" onchange="sendPrivateImage(this)" />
             <input type="text" id="private-input" placeholder="اكتب رسالة خاصة..." style="flex: 1; border: 1px solid #ddd; padding: 8px; border-radius: 5px; outline: none; font-size: 13px;" />
-            <button onclick="sendPrivateMessage()" style="padding: 8px 12px; font-size: 13px;">إرسال</button>
+            <button type="button" onclick="sendPrivateMessage()" style="padding: 8px 12px; font-size: 13px;">إرسال</button>
         </div>
     </div>
 
