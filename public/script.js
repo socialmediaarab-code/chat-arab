@@ -6,22 +6,44 @@ let currentPrivateTargetId = null;
 let unreadCount = 0;
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// تسجيل الدخول
+// تسجيل انضمام الغرفة
 socket.emit('join_room', { username: currentUser, room: currentRoom });
 
-// العناصر
+// عناصر الواجهة
 const publicMessages = document.getElementById('public-messages');
 const publicInput = document.getElementById('public-input');
+const privateInput = document.getElementById('private-input');
 const usersList = document.getElementById('users-list');
 const typingIndicator = document.getElementById('typing-indicator');
 
-// 1. منطق الشات العام
+// --- إعداد مكتبة الإيموجي ---
+const picker = new EmojiButton({ position: 'top-start' });
+const emojiBtn = document.getElementById('emoji-btn');
+
+emojiBtn.addEventListener('click', () => picker.togglePicker(emojiBtn));
+picker.on('emoji', selection => {
+    publicInput.value += selection.emoji;
+});
+
+// --- 1. الشات العام ---
 function sendPublicMessage() {
     const msg = publicInput.value.trim();
     if (msg) {
         socket.emit('send_message', { room: currentRoom, message: msg });
         publicInput.value = '';
         socket.emit('stop_typing', { room: currentRoom });
+    }
+}
+
+function sendPublicImage(input) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            socket.emit('send_message', { room: currentRoom, message: '', image: e.target.result });
+            input.value = '';
+        };
+        reader.readAsDataURL(file);
     }
 }
 
@@ -33,12 +55,17 @@ socket.on('chat_message', (data) => {
     const msgDiv = document.createElement('div');
     const isMe = data.username === currentUser;
     msgDiv.className = `msg ${isMe ? 'me' : ''}`;
-    msgDiv.innerHTML = `<strong>${data.username}:</strong> ${data.message}`;
+    
+    let content = `<strong>${data.username}:</strong> `;
+    if (data.message) content += `<span>${data.message}</span>`;
+    if (data.image) content += `<br><img src="${data.image}" class="chat-img" />`;
+    
+    msgDiv.innerHTML = content;
     publicMessages.appendChild(msgDiv);
     publicMessages.scrollTop = publicMessages.scrollHeight;
 });
 
-// 2. قائمة المتصلين
+// --- 2. قائمة المتصلين ---
 socket.on('update_users', (users) => {
     usersList.innerHTML = '';
     users.forEach(u => {
@@ -46,17 +73,14 @@ socket.on('update_users', (users) => {
             const uDiv = document.createElement('div');
             uDiv.className = 'user-item';
             uDiv.innerText = `👤 ${u.username}`;
-            uDiv.onclick = () => openPrivateChat(u.socketId || getSocketIdByUsername(users, u.username), u.username);
+            // ربط معرف الـ socket الصحيح مع دالة الفتح
+            uDiv.onclick = () => openPrivateChat(u.id, u.username);
             usersList.appendChild(uDiv);
         }
     });
 });
 
-function getSocketIdByUsername(users, name) {
-    return Object.keys(users).find(key => users[key].username === name);
-}
-
-// 3. مؤشر يكتب الآن
+// --- 3. مؤشر "يكتب الآن" ---
 let typingTimeout;
 publicInput.addEventListener('input', () => {
     socket.emit('typing', { username: currentUser, room: currentRoom });
@@ -74,7 +98,7 @@ socket.on('hide_typing', () => {
     typingIndicator.innerText = '';
 });
 
-// 4. النافذة المنبثقة والقابلة للسحب للخاص
+// --- 4. النافذة المنبثقة والسحب للخاص ---
 dragElement(document.getElementById("private-chat-modal"));
 
 function dragElement(elmnt) {
@@ -121,31 +145,50 @@ function closePrivateModal() {
     currentPrivateTargetId = null;
 }
 
+// إرسال رسالة خاصة
 function sendPrivateMessage() {
-    const input = document.getElementById('private-input');
-    const msg = input.value.trim();
+    const msg = privateInput.value.trim();
     if (msg && currentPrivateTargetId) {
         socket.emit('send_private_msg', { targetSocketId: currentPrivateTargetId, message: msg });
-        appendPrivateMessage('أنت', msg, true);
-        input.value = '';
+        appendPrivateMessage('أنت', msg, null, true);
+        privateInput.value = '';
     }
 }
 
+privateInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendPrivateMessage();
+});
+
+// إرسال صورة في الخاص
+function sendPrivateImage(input) {
+    const file = input.files[0];
+    if (file && currentPrivateTargetId) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            socket.emit('send_private_msg', { targetSocketId: currentPrivateTargetId, message: '', image: e.target.result });
+            appendPrivateMessage('أنت', '', e.target.result, true);
+            input.value = '';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// استقبال الرسالة الخاصة
 socket.on('receive_private_msg', (data) => {
     notificationSound.play().catch(() => {});
     const modal = document.getElementById('private-chat-modal');
 
     if (modal.style.display === 'block' && currentPrivateTargetId === data.senderId) {
-        appendPrivateMessage(data.senderName, data.message, false);
+        appendPrivateMessage(data.senderName, data.message, data.image, false);
     } else {
         unreadCount++;
         updateBadge();
         openPrivateChat(data.senderId, data.senderName);
-        appendPrivateMessage(data.senderName, data.message, false);
+        appendPrivateMessage(data.senderName, data.message, data.image, false);
     }
 });
 
-function appendPrivateMessage(sender, msg, isMe) {
+function appendPrivateMessage(sender, msg, image, isMe) {
     const msgContainer = document.getElementById('private-messages');
     const msgDiv = document.createElement('div');
     msgDiv.style.alignSelf = isMe ? 'flex-end' : 'flex-start';
@@ -155,7 +198,12 @@ function appendPrivateMessage(sender, msg, isMe) {
     msgDiv.style.borderRadius = '8px';
     msgDiv.style.maxWidth = '80%';
     msgDiv.style.fontSize = '0.85em';
-    msgDiv.innerHTML = `<strong>${sender}:</strong> ${msg}`;
+    
+    let content = `<strong>${sender}:</strong> `;
+    if (msg) content += `<span>${msg}</span>`;
+    if (image) content += `<br><img src="${image}" class="chat-img" />`;
+
+    msgDiv.innerHTML = content;
     msgContainer.appendChild(msgDiv);
     msgContainer.scrollTop = msgContainer.scrollHeight;
 }
