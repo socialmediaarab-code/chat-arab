@@ -93,22 +93,46 @@
         }
 
         .sidebar {
-            width: 250px;
+            width: 280px;
             background: #0b2535;
             color: white;
             padding: 15px;
             overflow-y: auto;
             border-left: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 5px;
+            color: #f39c12;
         }
 
         .user-item {
-            padding: 8px;
+            padding: 8px 10px;
             cursor: pointer;
             border-radius: 5px;
             margin-bottom: 5px;
             background: rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .user-item:hover { background: rgba(255,255,255,0.2); }
+
+        /* عداد الرسائل الخاصة */
+        .unread-badge {
+            background: #ff4757;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: bold;
+        }
 
         .chat-main {
             flex: 1;
@@ -158,13 +182,13 @@
             position: fixed;
             bottom: 0;
             right: 20px;
-            width: 320px;
-            height: 400px;
+            width: 340px;
+            height: 420px;
             background: white;
             border: 1px solid #ccc;
             border-top-left-radius: 10px;
             border-top-right-radius: 10px;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
             flex-direction: column;
             z-index: 1000;
         }
@@ -261,11 +285,20 @@
             <div>مرحباً، <span id="current-user-display" style="font-weight: bold; color: #7ab51d;"></span> | <button onclick="location.reload()" style="background:#ff6b6b; border:none; color:white; padding:5px 10px; border-radius:5px; cursor:pointer;">خروج</button></div>
         </div>
         <div class="chat-container">
-            <!-- قائمة المتواجدين -->
+            <!-- قائمة الجانب (المتواجدون + صندوق الرسائل الخاصة مع العدادات) -->
             <div class="sidebar">
-                <h4>المتواجدون</h4>
-                <div id="users-list"></div>
+                <div>
+                    <div class="section-title">📬 الرسائل الخاصة</div>
+                    <div id="private-conversations-list" style="margin-top: 8px; margin-bottom: 15px; max-height: 150px; overflow-y: auto;">
+                        <span style="font-size: 12px; color: #aaa;">لا توجد رسائل خاصة حالياً</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="section-title">👥 الأعضاء المتواجدون</div>
+                    <div id="users-list" style="margin-top: 8px; overflow-y: auto;"></div>
+                </div>
             </div>
+
             <!-- منطقة الرسائل العامة -->
             <div class="chat-main">
                 <div id="typing-indicator" style="padding: 5px 15px; font-size: 12px; color: #666; font-style: italic;"></div>
@@ -301,6 +334,9 @@
         let socket;
         let activePrivateSocketId = null;
         let activePrivateUsername = '';
+        
+        // نظام لتخزين الرسائل الخاصة والعدادات لكل مستخدم
+        let privateChatsData = {}; // { socketId: { username: '...', messages: [...], unreadCount: 0 } }
 
         function showForm(type) {
             document.getElementById('main-auth-buttons').style.display = 'none';
@@ -388,16 +424,21 @@
                 box.scrollTop = box.scrollHeight;
             });
 
-            // استقبال رسائل خاصة وفتح النافذة المنفصلة تلقائياً
+            // استقبال رسائل خاصة وتحديث العدادات في مربع الرسائل الخاصة
             socket.on('receive_private_msg', (data) => {
-                if (activePrivateSocketId !== data.senderId) {
-                    openPrivateChatModal(data.senderId, data.senderName);
+                if (!privateChatsData[data.senderId]) {
+                    privateChatsData[data.senderId] = { username: data.senderName, messages: [], unreadCount: 0 };
                 }
-                const pBox = document.getElementById('private-messages-box');
-                let content = `<strong>${data.senderName}:</strong> ${data.message || ''}`;
-                if (data.image) content += `<br><img src="${data.image}" style="max-width:150px; border-radius:5px; margin-top:5px;">`;
-                pBox.innerHTML += `<div class="message-bubble" style="background:#fff; border:1px solid #ddd;">${content}</div>`;
-                pBox.scrollTop = pBox.scrollHeight;
+                privateChatsData[data.senderId].messages.push({ sender: data.senderName, message: data.message, image: data.image });
+                
+                // إذا لم تكن نافذة المحادثة الخاصة مفتوحة مع هذا الشخص، قم بزيادة عداد الرسائل غير المقروءة
+                if (activePrivateSocketId !== data.senderId) {
+                    privateChatsData[data.senderId].unreadCount += 1;
+                } else {
+                    // إذا كانت النافذة مفتوحة، قم بعرض الرسالة مباشرة
+                    appendPrivateMessageUI(data.senderName, data.message, data.image, false);
+                }
+                renderPrivateConversationsList();
             });
 
             socket.on('update_users', (users) => {
@@ -405,7 +446,7 @@
                 list.innerHTML = '';
                 users.forEach(u => {
                     if (u.username !== username) {
-                        list.innerHTML += `<div class="user-item" onclick="openPrivateChatModal('${u.id}', '${u.username}')">👤 ${u.username}</div>`;
+                        list.innerHTML += `<div class="user-item" onclick="openPrivateChatModal('${u.id}', '${u.username}')"><span>👤 ${u.username}</span><span style="font-size:11px; color:#aaa;">مراسلة</span></div>`;
                     }
                 });
             });
@@ -425,16 +466,64 @@
             });
         }
 
+        // تحديث وتجهيز صندوق الرسائل الخاصة الجانبي مع العدادات
+        function renderPrivateConversationsList() {
+            const container = document.getElementById('private-conversations-list');
+            container.innerHTML = '';
+            const keys = Object.keys(privateChatsData);
+            if (keys.length === 0) {
+                container.innerHTML = `<span style="font-size: 12px; color: #aaa;">لا توجد رسائل خاصة حالياً</span>`;
+                return;
+            }
+            keys.forEach(sId => {
+                const chat = privateChatsData[sId];
+                container.innerHTML += `
+                    <div class="user-item" onclick="openPrivateChatModal('${sId}', '${chat.username}')">
+                        <span>💬 ${chat.username}</span>
+                        ${chat.unreadCount > 0 ? `<span class="unread-badge">${chat.unreadCount}</span>` : ''}
+                    </div>
+                `;
+            });
+        }
+
         function openPrivateChatModal(socketId, targetName) {
             activePrivateSocketId = socketId;
             activePrivateUsername = targetName;
+            
+            if (!privateChatsData[socketId]) {
+                privateChatsData[socketId] = { username: targetName, messages: [], unreadCount: 0 };
+            }
+            // تصفير عداد الرسائل غير المقروءة عند فتح المحادثة
+            privateChatsData[socketId].unreadCount = 0;
+            renderPrivateConversationsList();
+
             document.getElementById('private-target-title').innerText = `محادثة خاصة: ${targetName}`;
+            
+            // تعبئة الرسائل السابقة لهذه المحادثة
+            const pBox = document.getElementById('private-messages-box');
+            pBox.innerHTML = '';
+            privateChatsData[socketId].messages.forEach(m => {
+                const isMyMsg = m.sender === 'أنت';
+                let content = `<strong>${m.sender}:</strong> ${m.message || ''}`;
+                if (m.image) content += `<br><img src="${m.image}" style="max-width:150px; border-radius:5px; margin-top:5px;">`;
+                pBox.innerHTML += `<div class="message-bubble ${isMyMsg ? 'my-msg' : ''}" style="${isMyMsg ? '' : 'background:#fff; border:1px solid #ddd;'}">${content}</div>`;
+            });
+            pBox.scrollTop = pBox.scrollHeight;
+
             document.getElementById('private-chat-modal').style.display = 'flex';
         }
 
         function closePrivateModal() {
             document.getElementById('private-chat-modal').style.display = 'none';
             activePrivateSocketId = null;
+        }
+
+        function appendPrivateMessageUI(sender, message, image, isMine) {
+            const pBox = document.getElementById('private-messages-box');
+            let content = `<strong>${sender}:</strong> ${message || ''}`;
+            if (image) content += `<br><img src="${image}" style="max-width:150px; border-radius:5px; margin-top:5px;">`;
+            pBox.innerHTML += `<div class="message-bubble ${isMine ? 'my-msg' : ''}" style="${isMine ? '' : 'background:#fff; border:1px solid #ddd;'}">${content}</div>`;
+            pBox.scrollTop = pBox.scrollHeight;
         }
 
         function sendMessage() {
@@ -461,9 +550,11 @@
             if (!text || !activePrivateSocketId) return;
 
             socket.emit('send_private_msg', { targetSocketId: activePrivateSocketId, message: text });
-            const pBox = document.getElementById('private-messages-box');
-            pBox.innerHTML += `<div class="message-bubble my-msg"><strong>أنت:</strong> ${text}</div>`;
-            pBox.scrollTop = pBox.scrollHeight;
+            
+            // حفظ الرسالة في السجل المحلي وإضافتها للواجهة
+            privateChatsData[activePrivateSocketId].messages.push({ sender: 'أنت', message: text });
+            appendPrivateMessageUI('أنت', text, null, true);
+            
             input.value = '';
         }
 
@@ -474,9 +565,9 @@
             reader.onload = function(e) {
                 const base64Img = e.target.result;
                 socket.emit('send_private_msg', { targetSocketId: activePrivateSocketId, image: base64Img });
-                const pBox = document.getElementById('private-messages-box');
-                pBox.innerHTML += `<div class="message-bubble my-msg"><strong>أنت:</strong><br><img src="${base64Img}" style="max-width:150px; border-radius:5px;"></div>`;
-                pBox.scrollTop = pBox.scrollHeight;
+                
+                privateChatsData[activePrivateSocketId].messages.push({ sender: 'أنت', image: base64Img });
+                appendPrivateMessageUI('أنت', null, base64Img, true);
             };
             reader.readAsDataURL(file);
         }
