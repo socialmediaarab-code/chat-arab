@@ -10,16 +10,17 @@ let currentPrivateTargetId = null;
 let unreadCount = 0;
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣', '🏻'];
+const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣'];
 
 socket.on('connect', () => {
     socket.emit('join_room', { username: currentUser, room: currentRoom });
 });
 
-// إعداد الإيموجيات عند تحميل الصفحة
+// إعداد قائمة الإيموجيات
 window.addEventListener('DOMContentLoaded', () => {
     setupEmojiPicker('public-emoji-list', 'public-input');
     setupEmojiPicker('private-emoji-list', 'private-input');
+    makeModalDraggable(document.getElementById("private-chat-modal"));
 });
 
 function setupEmojiPicker(pickerId, inputId) {
@@ -29,9 +30,13 @@ function setupEmojiPicker(pickerId, inputId) {
     emojis.forEach(e => {
         const span = document.createElement('span');
         span.innerText = e;
-        span.onclick = () => {
+        span.onclick = (event) => {
+            event.stopPropagation();
             const input = document.getElementById(inputId);
-            if (input) input.value += e;
+            if (input) {
+                input.value += e;
+                input.focus();
+            }
             picker.style.display = 'none';
         };
         picker.appendChild(span);
@@ -45,7 +50,7 @@ function toggleEmojiPicker(pickerId) {
     }
 }
 
-// الشات العام
+// --- الشات العام ---
 function sendPublicMessage() {
     const publicInput = document.getElementById('public-input');
     const msg = publicInput.value.trim();
@@ -96,7 +101,7 @@ socket.on('chat_message', (data) => {
     publicMessages.scrollTop = publicMessages.scrollHeight;
 });
 
-// قائمة المتصلين
+// --- قائمة المتصلين ---
 socket.on('update_users', (users) => {
     const usersList = document.getElementById('users-list');
     usersList.innerHTML = '';
@@ -121,47 +126,25 @@ socket.on('hide_typing', () => {
     if (indicator) indicator.innerText = '';
 });
 
-// الشات الخاص
-dragElement(document.getElementById("private-chat-modal"));
-
-function dragElement(elmnt) {
-    if (!elmnt) return;
-    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-    const header = document.getElementById(elmnt.id + "-header") || elmnt;
-    header.onmousedown = dragMouseDown;
-
-    function dragMouseDown(e) {
-        e = e || window.event;
-        e.preventDefault();
-        pos3 = e.clientX;
-        pos4 = e.clientY;
-        document.onmouseup = closeDragElement;
-        document.onmousemove = elementDrag;
-    }
-
-    function elementDrag(e) {
-        e = e || window.event;
-        e.preventDefault();
-        pos1 = pos3 - e.clientX;
-        pos2 = pos4 - e.clientY;
-        pos3 = e.clientX;
-        pos4 = e.clientY;
-        elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
-        elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
-    }
-
-    function closeDragElement() {
-        document.onmouseup = null;
-        document.onmousemove = null;
-    }
-}
-
+// --- الشات الخاص ---
 function openPrivateChat(targetSocketId, targetUsername) {
     currentPrivateTargetId = targetSocketId;
     document.getElementById('private-target-name').innerText = `محادثة مع: ${targetUsername}`;
-    document.getElementById('private-chat-modal').style.display = 'block';
+    
+    const modal = document.getElementById('private-chat-modal');
+    modal.style.display = 'block';
+    
     unreadCount = 0;
     updateBadge();
+
+    // التركيز التلقائي على خانة النص فور الفتح
+    setTimeout(() => {
+        const privateInp = document.getElementById('private-input');
+        if (privateInp) {
+            privateInp.removeAttribute('disabled');
+            privateInp.focus();
+        }
+    }, 100);
 }
 
 function closePrivateModal() {
@@ -170,20 +153,25 @@ function closePrivateModal() {
 }
 
 function sendPrivateMessage() {
-    const privateInput = document.getElementById('private-input');
-    const msg = privateInput.value.trim();
+    const privateInp = document.getElementById('private-input');
+    if (!privateInp) return;
+
+    const msg = privateInp.value.trim();
     if (msg && currentPrivateTargetId) {
         socket.emit('send_private_msg', { 
             targetSocketId: currentPrivateTargetId, 
             message: msg 
         });
         appendPrivateMessage('أنت', msg, null, true);
-        privateInput.value = '';
+        privateInp.value = '';
+        privateInp.focus();
     }
 }
 
-document.getElementById('private-input').addEventListener('keypress', (e) => {
+// الاستماع المباشر للكتابة في الخاص
+document.getElementById('private-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
+        e.preventDefault();
         sendPrivateMessage();
     }
 });
@@ -248,5 +236,43 @@ function updateBadge() {
         } else {
             badge.style.display = 'none';
         }
+    }
+}
+
+// دالة سحب النافذة المنبثقة بدون تعطيل خانات الإدخال
+function makeModalDraggable(elmnt) {
+    if (!elmnt) return;
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    const header = document.getElementById("private-modal-header");
+
+    if (header) {
+        header.onmousedown = dragMouseDown;
+    }
+
+    function dragMouseDown(e) {
+        e = e || window.event;
+        // حظر السحب فقط عند الضغط على زر الإغلاق
+        if (e.target.tagName === 'BUTTON') return;
+        
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+    }
+
+    function elementDrag(e) {
+        e = e || window.event;
+        e.preventDefault();
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+        elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+    }
+
+    function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
     }
 }
