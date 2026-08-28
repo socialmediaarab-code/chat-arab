@@ -1,35 +1,182 @@
-const socket = io();
-
-let currentUser = prompt('أدخل اسمك للدخول إلى الدردشة:');
-if (!currentUser || currentUser.trim() === '') {
-    currentUser = 'زائر_' + Math.floor(Math.random() * 1000);
-}
+let socket;
+let currentUser = '';
+let isRegisterMode = false;
 
 let currentRoom = 'general';
 let currentPrivateTargetId = null;
-
-// قائمة الأشخاص النشطين { socketId: username }
 let activePmUsers = {};
-
-// تخزين سجل الرسائل لكل مستخدم { socketId: [ {sender, msg, image, isMe} ] }
 let pmChatHistories = {};
-
-// تخزين عدد الرسائل غير المقروءة لكل مستخدم { socketId: count }
 let unreadCountsPerUser = {};
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const emojis = ['😀', '😂', '😍', '❤️', '👍', '🔥', '🎉', '😊', '😭', '😎', '🙏', '✨', '🤣'];
 
-socket.on('connect', () => {
+// التبديل بين نموذج تسجيل الدخول أو إنشاء حساب
+function toggleAuthMode() {
+    isRegisterMode = !isRegisterMode;
+    const title = document.getElementById('auth-title');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const switchBtn = document.getElementById('switch-mode-btn');
+    const nameField = document.getElementById('register-name-field');
+    const errorDiv = document.getElementById('auth-error');
+    
+    errorDiv.style.display = 'none';
+
+    if (isRegisterMode) {
+        title.innerText = 'إنشاء حساب جديد';
+        submitBtn.innerText = 'تسجيل';
+        switchBtn.innerText = 'لديك حساب بالفعل؟ تسجيل الدخول';
+        nameField.style.display = 'block';
+    } else {
+        title.innerText = 'تسجيل الدخول';
+        submitBtn.innerText = 'دخول';
+        switchBtn.innerText = 'ليس لديك حساب؟ إنشاء حساب جديد';
+        nameField.style.display = 'none';
+    }
+}
+
+// إرسال بيانات الدخول أو التسجيل بالبريد
+async function submitAuthForm() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+    const username = document.getElementById('reg-username').value.trim();
+    const errorDiv = document.getElementById('auth-error');
+
+    if (!email || !password || (isRegisterMode && !username)) {
+        errorDiv.innerText = 'الرجاء تعبئة جميع الحقول المطلوبة';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const endpoint = isRegisterMode ? '/api/register' : '/api/login';
+    const payload = isRegisterMode ? { username, email, password } : { email, password };
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            if (isRegisterMode) {
+                alert('تم إنشاء الحساب بنجاح، يمكنك تسجيل الدخول الآن');
+                toggleAuthMode();
+            } else {
+                startChatSession(data.username);
+            }
+        } else {
+            errorDiv.innerText = data.error || 'حدث خطأ ما';
+            errorDiv.style.display = 'block';
+        }
+    } catch (err) {
+        errorDiv.innerText = 'تعذر الاتصال بالخادم';
+        errorDiv.style.display = 'block';
+    }
+}
+
+// دالة مصادقة جوجل
+function handleGoogleSignIn(response) {
+    fetch('/api/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            startChatSession(data.username);
+        } else {
+            const errorDiv = document.getElementById('auth-error');
+            errorDiv.innerText = 'فشل تسجيل الدخول عبر جوجل';
+            errorDiv.style.display = 'block';
+        }
+    });
+}
+
+// بدء جلسة الشات بعد نجاح المصادقة
+function startChatSession(username) {
+    currentUser = username;
+    document.getElementById('current-user-display').innerText = currentUser;
+    document.getElementById('auth-screen').style.display = 'none';
+
+    socket = io();
     socket.emit('join_room', { username: currentUser, room: currentRoom });
-});
 
-window.addEventListener('DOMContentLoaded', () => {
-    setupEmojiPicker('public-emoji-list', 'public-input');
-    setupEmojiPicker('private-emoji-list', 'private-input');
-    makeModalDraggable(document.getElementById("private-chat-modal"));
-});
+    socket.on('connect', () => {
+        setupEmojiPicker('public-emoji-list', 'public-input');
+        setupEmojiPicker('private-emoji-list', 'private-input');
+        makeModalDraggable(document.getElementById("private-chat-modal"));
+    });
 
+    socket.on('chat_message', (data) => {
+        const publicMessages = document.getElementById('public-messages');
+        const msgDiv = document.createElement('div');
+        const isMe = data.username === currentUser;
+        msgDiv.className = `msg ${isMe ? 'me' : ''}`;
+        
+        let content = `<strong>${data.username}:</strong> `;
+        if (data.message) content += `<span>${data.message}</span>`;
+        if (data.image) content += `<br><img src="${data.image}" class="chat-img" />`;
+        
+        msgDiv.innerHTML = content;
+        publicMessages.appendChild(msgDiv);
+        publicMessages.scrollTop = publicMessages.scrollHeight;
+    });
+
+    socket.on('update_users', (users) => {
+        const usersList = document.getElementById('users-list');
+        usersList.innerHTML = '';
+        users.forEach(u => {
+            if (u.id !== socket.id) {
+                const uDiv = document.createElement('div');
+                uDiv.className = 'user-item';
+                uDiv.innerText = `👤 ${u.username}`;
+                uDiv.onclick = () => openPrivateChat(u.id, u.username);
+                usersList.appendChild(uDiv);
+            }
+        });
+    });
+
+    socket.on('display_typing', (data) => {
+        const indicator = document.getElementById('typing-indicator');
+        if (indicator) indicator.innerText = `${data.username} يكتب الآن...`;
+    });
+
+    socket.on('hide_typing', () => {
+        const indicator = document.getElementById('typing-indicator');
+        if (indicator) indicator.innerText = '';
+    });
+
+    socket.on('receive_private_msg', (data) => {
+        notificationSound.play().catch(() => {});
+        
+        activePmUsers[data.senderId] = data.senderName;
+        
+        if (!pmChatHistories[data.senderId]) {
+            pmChatHistories[data.senderId] = [];
+        }
+
+        pmChatHistories[data.senderId].push({
+            sender: data.senderName,
+            msg: data.message,
+            image: data.image,
+            isMe: false
+        });
+
+        const modal = document.getElementById('private-chat-modal');
+
+        if (modal.style.display === 'block' && currentPrivateTargetId === data.senderId) {
+            renderSinglePrivateMsg(data.senderName, data.message, data.image, false);
+        } else {
+            unreadCountsPerUser[data.senderId] = (unreadCountsPerUser[data.senderId] || 0) + 1;
+            updateTotalBadge();
+        }
+    });
+}
+
+// --- إعدادات الإيموجي والشات الخاص ---
 function setupEmojiPicker(pickerId, inputId) {
     const picker = document.getElementById(pickerId);
     if (!picker) return;
@@ -57,7 +204,6 @@ function toggleEmojiPicker(pickerId) {
     }
 }
 
-// --- الشات العام ---
 function sendPublicMessage() {
     const publicInput = document.getElementById('public-input');
     const msg = publicInput.value.trim();
@@ -93,47 +239,6 @@ document.getElementById('public-input').addEventListener('input', () => {
     }, 1000);
 });
 
-socket.on('chat_message', (data) => {
-    const publicMessages = document.getElementById('public-messages');
-    const msgDiv = document.createElement('div');
-    const isMe = data.username === currentUser;
-    msgDiv.className = `msg ${isMe ? 'me' : ''}`;
-    
-    let content = `<strong>${data.username}:</strong> `;
-    if (data.message) content += `<span>${data.message}</span>`;
-    if (data.image) content += `<br><img src="${data.image}" class="chat-img" />`;
-    
-    msgDiv.innerHTML = content;
-    publicMessages.appendChild(msgDiv);
-    publicMessages.scrollTop = publicMessages.scrollHeight;
-});
-
-// --- قائمة المتصلين ---
-socket.on('update_users', (users) => {
-    const usersList = document.getElementById('users-list');
-    usersList.innerHTML = '';
-    users.forEach(u => {
-        if (u.id !== socket.id) {
-            const uDiv = document.createElement('div');
-            uDiv.className = 'user-item';
-            uDiv.innerText = `👤 ${u.username}`;
-            uDiv.onclick = () => openPrivateChat(u.id, u.username);
-            usersList.appendChild(uDiv);
-        }
-    });
-});
-
-socket.on('display_typing', (data) => {
-    const indicator = document.getElementById('typing-indicator');
-    if (indicator) indicator.innerText = `${data.username} يكتب الآن...`;
-});
-
-socket.on('hide_typing', () => {
-    const indicator = document.getElementById('typing-indicator');
-    if (indicator) indicator.innerText = '';
-});
-
-// --- إدارة قائمة صندوق الخاص (Inbox) ---
 function togglePmInboxModal() {
     const modal = document.getElementById('pm-inbox-modal');
     if (modal.style.display === 'block') {
@@ -161,7 +266,6 @@ function renderPmInboxList() {
         const item = document.createElement('div');
         item.className = 'pm-inbox-item';
         
-        // عرض شارة عدد الرسائل بجانب اسم المستخدم في القائمة إن وجدت
         let badgeHtml = unreadForThisUser > 0 ? `<span style="background: red; color: white; border-radius: 50%; padding: 1px 6px; font-size: 11px; margin-right: 8px;">${unreadForThisUser}</span>` : '';
 
         item.innerHTML = `
@@ -201,12 +305,10 @@ function clearAllPmConversations() {
     closePrivateModal();
 }
 
-// --- الشات الخاص المستقل ---
 function openPrivateChat(targetSocketId, targetUsername) {
     currentPrivateTargetId = targetSocketId;
     activePmUsers[targetSocketId] = targetUsername;
 
-    // تصفير عداد الرسائل غير المقروءة لهذا المستخدم فقط عند فتح محادثته
     unreadCountsPerUser[targetSocketId] = 0;
     updateTotalBadge();
 
@@ -285,34 +387,6 @@ function sendPrivateImage(input) {
     }
 }
 
-socket.on('receive_private_msg', (data) => {
-    notificationSound.play().catch(() => {});
-    
-    activePmUsers[data.senderId] = data.senderName;
-    
-    if (!pmChatHistories[data.senderId]) {
-        pmChatHistories[data.senderId] = [];
-    }
-
-    pmChatHistories[data.senderId].push({
-        sender: data.senderName,
-        msg: data.message,
-        image: data.image,
-        isMe: false
-    });
-
-    const modal = document.getElementById('private-chat-modal');
-
-    // إذا كانت نافذة هذا الشخص مفتوحة حالياً، لا نزيد عداد إشعاراته
-    if (modal.style.display === 'block' && currentPrivateTargetId === data.senderId) {
-        renderSinglePrivateMsg(data.senderName, data.message, data.image, false);
-    } else {
-        // زيادة العداد الخاص بهذا المرسل فقط
-        unreadCountsPerUser[data.senderId] = (unreadCountsPerUser[data.senderId] || 0) + 1;
-        updateTotalBadge();
-    }
-});
-
 function saveAndAppendPrivateMsg(targetId, sender, msg, image, isMe) {
     if (!pmChatHistories[targetId]) {
         pmChatHistories[targetId] = [];
@@ -341,7 +415,6 @@ function renderSinglePrivateMsg(sender, msg, image, isMe) {
     msgContainer.scrollTop = msgContainer.scrollHeight;
 }
 
-// حساب المجموع الكلي للرسائل غير المقروءة لظهوره في زر الهيدر العلوي
 function updateTotalBadge() {
     const badge = document.getElementById('pm-badge');
     const totalUnread = Object.values(unreadCountsPerUser).reduce((a, b) => a + b, 0);
