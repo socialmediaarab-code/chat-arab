@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 1e7
+    maxHttpBufferSize: 1e7 // رفع صور حتى 10 ميجابايت
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -15,7 +15,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// تخزين بيانات المتصلين
+// قائمة المتصلين
 const users = {};
 
 io.on('connection', (socket) => {
@@ -26,24 +26,21 @@ io.on('connection', (socket) => {
         socket.room = data.room || 'general';
         socket.join(socket.room);
 
-        // إضافة المستخدم بالقائمة بالتفصيل
         users[socket.id] = { 
             id: socket.id, 
             username: socket.username, 
             room: socket.room 
         };
 
-        // تحديث قائمة المستخدمين عند الجميع
         io.to(socket.room).emit('update_users', Object.values(users));
 
-        // إشعار انضمام
         socket.to(socket.room).emit('chat_message', {
             username: 'النظام',
             message: `${socket.username} انضم إلى المحادثة.`
         });
     });
 
-    // 2. إرسال رسالة عامة
+    // 2. إرسال رسالة عامة (نص أو صورة)
     socket.on('send_message', (data) => {
         io.to(data.room).emit('chat_message', {
             username: socket.username,
@@ -52,7 +49,7 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 3. إرسال رسالة خاصة
+    // 3. إرسال رسالة خاصة (نص أو صورة)
     socket.on('send_private_msg', (data) => {
         if (data.targetSocketId && io.sockets.sockets.get(data.targetSocketId)) {
             io.to(data.targetSocketId).emit('receive_private_msg', {
@@ -64,7 +61,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. مؤشر الكتابة
+    // 4. أحداث الكتابة
     socket.on('typing', (data) => {
         socket.to(data.room).emit('display_typing', { username: socket.username });
     });
@@ -73,7 +70,7 @@ io.on('connection', (socket) => {
         socket.to(data.room).emit('hide_typing');
     });
 
-    // 5. عند الانقطاع
+    // 5. الانقطع عن الاتصال
     socket.on('disconnect', () => {
         if (users[socket.id]) {
             const disconnectedUser = users[socket.id];
