@@ -10,7 +10,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// استبدل هذا بـ Client ID الخاص بك من جوجل
+// ضع الـ Client ID الخاص بجوجل هنا
 const GOOGLE_CLIENT_ID = '593400807452-hasied40uonfha4fh157c7vtb0tibkk4.apps.googleusercontent.com';
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
@@ -23,49 +23,42 @@ mongoose.connect('mongodb://127.0.0.1:27017/arabic-chat', {
     useUnifiedTopology: true
 }).then(() => console.log('تم الاتصال بقاعدة البيانات بنجاح')).catch(err => console.log('خطأ في الاتصال بقاعدة البيانات:', err));
 
-// 1. مسار التسجيل بالبريد الإلكتروني وكلمة المرور
+// مسار التسجيل بالبريد
 app.post('/api/register', async (req, res) => {
     try {
         const { username, email, password } = req.body;
-        
         let user = await User.findOne({ email });
         if (user) {
             return res.status(400).json({ success: false, error: 'البريد الإلكتروني مستخدم مسبقاً' });
         }
-
         const hashedPassword = await bcrypt.hash(password, 10);
-        
         user = new User({ username, email, password: hashedPassword });
         await user.save();
-
         res.json({ success: true, message: 'تم إنشاء الحساب بنجاح' });
     } catch (err) {
         res.status(500).json({ success: false, error: 'حدث خطأ في الخادم' });
     }
 });
 
-// 2. مسار تسجيل الدخول بالبريد الإلكتروني وكلمة المرور
+// مسار تسجيل الدخول بالبريد
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-        
         if (!user || !user.password) {
             return res.status(400).json({ success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
         }
-
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
         }
-
         res.json({ success: true, username: user.username });
     } catch (err) {
         res.status(500).json({ success: false, error: 'حدث خطأ في الخادم' });
     }
 });
 
-// 3. مسار المصادقة عبر Google
+// مسار تسجيل الدخول عبر جوجل
 app.post('/api/google-login', async (req, res) => {
     try {
         const { credential } = req.body;
@@ -73,17 +66,14 @@ app.post('/api/google-login', async (req, res) => {
             idToken: credential,
             audience: GOOGLE_CLIENT_ID,
         });
-        
         const payload = ticket.getPayload();
         const { email, name, sub: googleId } = payload;
 
         let user = await User.findOne({ email });
         if (!user) {
-            // إنشاء حساب تلقائي إذا لم يكن موجوداً
             user = new User({ username: name, email, googleId });
             await user.save();
         }
-
         res.json({ success: true, username: user.username });
     } catch (err) {
         res.status(400).json({ success: false, error: 'فشل المصادقة عبر جوجل' });
@@ -138,6 +128,7 @@ function updateUsersList() {
     io.emit('update_users', users);
 }
 
-server.listen(3000, () => {
-    console.log('السيرفر يعمل على المنظومة http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`السيرفر يعمل على المنفذ ${PORT}`);
 });
