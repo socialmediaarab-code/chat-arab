@@ -1,117 +1,79 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server);
 
-// دعم استقبال الملفات والصور الكبيرة حتى 10 ميجابايت
-const io = new Server(server, {
-    maxHttpBufferSize: 1e7
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.use(express.static('public'));
-
-const users = {}; 
-const rooms = ['العامة', 'مسابقات', 'تعارف'];
+const users = {};
 
 io.on('connection', (socket) => {
+    console.log('مستخدم جديد اتصل:', socket.id);
 
-    // الانضمام الأولي للمستخدم
-    socket.on('join-room', ({ username, room }) => {
-        const targetRoom = rooms.includes(room) ? room : 'العامة';
-        users[socket.id] = { username, room: targetRoom };
-        socket.join(targetRoom);
+    // تسجيل اسم المستخدم
+    socket.on('join_room', (data) => {
+        socket.username = data.username;
+        socket.room = data.room || 'general';
+        socket.join(socket.room);
 
-        io.to(targetRoom).emit('chat-message', {
-            user: 'النظام',
-            text: `انضم ${username} إلى غرفة [${targetRoom}]`,
-            system: true
+        users[socket.id] = { username: data.username, room: socket.room };
+        
+        io.to(socket.room).emit('update_users', Object.values(users));
+        socket.to(socket.room).emit('chat_message', {
+            username: 'النظام',
+            message: `${data.username} انضم إلى المحادثة.`
         });
-
-        updateRoomUsers(targetRoom);
-        socket.emit('init-rooms', { rooms, currentRoom: targetRoom });
     });
 
-    // التنقل بين الغرف
-    socket.on('switch-room', (newRoom) => {
-        const user = users[socket.id];
-        if (!user || user.room === newRoom || !rooms.includes(newRoom)) return;
-
-        const oldRoom = user.room;
-        socket.leave(oldRoom);
-        io.to(oldRoom).emit('chat-message', {
-            user: 'النظام',
-            text: `غادر ${user.username} الغرفة`,
-            system: true
+    // إرسال رسالة عامة
+    socket.on('send_message', (data) => {
+        io.to(data.room).emit('chat_message', {
+            username: socket.username,
+            message: data.message,
+            image: data.image || null
         });
-        updateRoomUsers(oldRoom);
+    });
 
-        user.room = newRoom;
-        socket.join(newRoom);
-        io.to(newRoom).emit('chat-message', {
-            user: 'النظام',
-            text: `انضم ${user.username} إلى غرفة [${newRoom}]`,
-            system: true
+    // إرسال رسالة خاصة
+    socket.on('send_private_msg', (data) => {
+        io.to(data.targetSocketId).emit('receive_private_msg', {
+            senderId: socket.id,
+            senderName: socket.username,
+            message: data.message
         });
-        updateRoomUsers(newRoom);
     });
 
-    // إرسال رسالة نصية أو صورة في الغرفة العامة
-    socket.on('send-message', (data) => {
-        const user = users[socket.id];
-        if (user) {
-            io.to(user.room).emit('chat-message', {
-                user: user.username,
-                text: data.text || null,
-                image: data.image || null,
-                system: false
-            });
-        }
+    // أحداث الكتابة
+    socket.on('typing', (data) => {
+        socket.to(data.room).emit('display_typing', { username: data.username });
     });
 
-    // إرسال رسالة خاصة لمستخدم محدد
-    socket.on('send-private-message', ({ targetId, message, image }) => {
-        const sender = users[socket.id];
-        if (sender && users[targetId]) {
-            io.to(targetId).emit('private-message', {
-                fromId: socket.id,
-                fromUser: sender.username,
-                message: message || null,
-                image: image || null
-            });
-            socket.emit('private-message-sent', {
-                toId: targetId,
-                toUser: users[targetId].username,
-                message: message || null,
-                image: image || null
-            });
-        }
+    socket.on('stop_typing', (data) => {
+        socket.to(data.room).emit('hide_typing');
     });
 
-    // عند قطع الاتصال
+    // عند القطع
     socket.on('disconnect', () => {
-        const user = users[socket.id];
-        if (user) {
-            const room = user.room;
-            io.to(room).emit('chat-message', {
-                user: 'النظام',
-                text: `غادر ${user.username} الدردشة`,
-                system: true
-            });
+        if (socket.username) {
             delete users[socket.id];
-            updateRoomUsers(room);
+            io.to(socket.room).emit('update_users', Object.values(users));
+            socket.to(socket.room).emit('chat_message', {
+                username: 'النظام',
+                message: `${socket.username} غادر المحادثة.`
+            });
         }
     });
-
-    function updateRoomUsers(room) {
-        const roomUsers = Object.entries(users)
-            .filter(([_, u]) => u.room === room)
-            .map(([id, u]) => ({ id, username: u.username }));
-        io.to(room).emit('update-user-list', roomUsers);
-    }
 });
 
-server.listen(3000, () => {
-    console.log('الدردشة تعمل الان على: http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`السيرفر يعمل على المنفذ: ${PORT}`);
 });
