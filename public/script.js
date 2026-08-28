@@ -78,7 +78,7 @@ function handleGoogleSignIn(response) {
     fetch('/api/google-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: response.credential })
+        body: JSON.stringify({ token: response.credential })
     })
     .then(res => res.json())
     .then(data => {
