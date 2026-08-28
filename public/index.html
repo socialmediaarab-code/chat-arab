@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>دردشة عربية متكاملة</title>
+    <!-- مكتبة Emoji Button المضمونة -->
+    <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@3.0.3/dist/index.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Tahoma, sans-serif; }
+        body { background: #f4f6f9; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        
+        /* النافذة المنبثقة لتسجيل الدخول */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: #fff; padding: 25px; border-radius: 8px; text-align: center; width: 300px; }
+        .modal-content input { padding: 10px; width: 100%; margin: 15px 0; border: 1px solid #ccc; border-radius: 4px; }
+        .modal-content button { padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; }
+        
+        /* الهيكل الرئيسي للشات */
+        .chat-container { display: flex; width: 950px; height: 600px; background: #fff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); overflow: hidden; position: relative; }
+        
+        /* الشريط الجانبي للغرف والمستخدمين */
+        .sidebar { width: 250px; background: #2c3e50; color: #fff; padding: 15px; display: flex; flex-direction: column; gap: 20px; }
+        .sidebar h4 { border-bottom: 1px solid #34495e; padding-bottom: 5px; color: #f39c12; }
+        .sidebar ul { list-style: none; margin-top: 8px; max-height: 200px; overflow-y: auto; }
+        
+        .room-item { padding: 8px 10px; border-radius: 4px; cursor: pointer; background: #34495e; margin-bottom: 5px; transition: 0.2s; }
+        .room-item:hover { background: #1abc9c; }
+        .room-item.active { background: #e67e22; font-weight: bold; }
+        
+        .user-item { padding: 6px 8px; border-bottom: 1px solid #34495e; font-size: 0.9em; cursor: pointer; transition: 0.2s; border-radius: 4px; }
+        .user-item:hover { background: #34495e; color: #1abc9c; }
+
+        /* منطقة الشات الرئيسية */
+        .main-chat { flex: 1; display: flex; flex-direction: column; position: relative; }
+        .chat-header { background: #ecf0f1; padding: 12px 20px; border-bottom: 1px solid #ddd; font-weight: bold; color: #2c3e50; }
+        #messages-box { flex: 1; padding: 20px; overflow-y: auto; background: #ebedef; }
+        
+        .message { margin-bottom: 10px; background: #fff; padding: 8px 12px; border-radius: 6px; width: fit-content; max-width: 75%; word-break: break-word; }
+        .message.system { background: #ffeaa7; width: 100%; text-align: center; font-size: 0.85em; color: #d35400; }
+        .message img, .private-msg img { max-width: 100%; max-height: 200px; border-radius: 6px; margin-top: 5px; display: block; }
+        
+        /* منطقة إدخال النصوص */
+        .input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; align-items: center; gap: 5px; }
+        .input-area input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .input-area button, .btn-icon { padding: 8px 12px; background: #2980b9; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-icon { background: #7f8c8d; }
+
+        /* نافذة المحادثة الخاصة */
+        .private-box { display: none; position: fixed; bottom: 20px; left: 20px; width: 330px; height: 400px; background: #fff; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); flex-direction: column; z-index: 200; }
+        .private-header { background: #8e44ad; color: #fff; padding: 10px; display: flex; justify-content: space-between; align-items: center; border-radius: 7px 7px 0 0; }
+        .private-header button { background: none; border: none; color: white; font-weight: bold; cursor: pointer; }
+        #private-messages { flex: 1; padding: 10px; overflow-y: auto; background: #f9f9f9; font-size: 0.9em; display: flex; flex-direction: column; }
+        .private-msg { margin-bottom: 8px; padding: 6px 10px; border-radius: 5px; width: fit-content; max-width: 85%; word-break: break-word; }
+        .private-msg.me { background: #d6eaf8; align-self: flex-end; margin-right: auto; }
+        .private-msg.other { background: #e8daef; }
+    </style>
+</head>
+<body>
+
+    <!-- نافذة الدخول -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <h3>أدخل اسمك للدخول</h3>
+            <input type="text" id="username-input" placeholder="اسمك هنا..." onkeydown="if(event.key==='Enter') login()">
+            <button onclick="login()">دخول</button>
+        </div>
+    </div>
+
+    <!-- نافذة الشات الأساسية -->
+    <div class="chat-container">
+        <div class="sidebar">
+            <div>
+                <h4>الغرف المتاحة</h4>
+                <ul id="rooms-list"></ul>
+            </div>
+            <div>
+                <h4>المتواجدون (اضغط للخاص)</h4>
+                <ul id="user-list"></ul>
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <div class="chat-header" id="current-room-title">الغرفة الحالية: العامة</div>
+            <div id="messages-box"></div>
+
+            <div class="input-area">
+                <button class="btn-icon" id="emoji-btn">😀</button>
+                <label class="btn-icon" style="cursor:pointer;">
+                    📷 <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="sendImage(event)">
+                </label>
+                <input type="text" id="message-input" placeholder="اكتب رسالة..." onkeydown="if(event.key==='Enter') sendMessage()">
+                <button onclick="sendMessage()">إرسال</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة الخاص المنبثقة -->
+    <div id="private-box" class="private-box">
+        <div class="private-header">
+            <span id="private-target-name">محادثة خاصة</span>
+            <button onclick="closePrivateChat()">✕</button>
+        </div>
+        <div id="private-messages"></div>
+        <div class="input-area">
+            <button class="btn-icon" id="private-emoji-btn" style="background:#8e44ad;">😀</button>
+            <label class="btn-icon" style="cursor:pointer; background:#8e44ad;">
+                📷 <input type="file" id="private-image-input" accept="image/*" style="display:none;" onchange="sendPrivateImage(event)">
+            </label>
+            <input type="text" id="private-input" placeholder="رسالة خاصة..." onkeydown="if(event.key==='Enter') sendPrivateMessage()">
+            <button onclick="sendPrivateMessage()" style="background:#8e44ad;">إرسال</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentRoom = "العامة";
+        let activePrivateTarget = null;
+        let activeInput = document.getElementById('message-input'); // لتحديد أي حقل نصي يتلقى الإيموجي
+
+        // --- تهيئة قائمة الإيموجيات ---
+        const picker = new EmojiButton({
+            position: 'top-start',
+            autoHide: false
+        });
+
+        const emojiBtn = document.getElementById('emoji-btn');
+        const privateEmojiBtn = document.getElementById('private-emoji-btn');
+        const messageInput = document.getElementById('message-input');
+        const privateInput = document.getElementById('private-input');
+
+        // تحديد الحقل المفعّل عند تركيز الكتابة فيه
+        messageInput.addEventListener('focus', () => { activeInput = messageInput; });
+        privateInput.addEventListener('focus', () => { activeInput = privateInput; });
+
+        picker.on('emoji', data => {
+            const emojiText = data.emoji || data;
+            if (activeInput) {
+                activeInput.value += emojiText;
+                activeInput.focus();
+            }
+        });
+
+        // زر إيموجي المحادثة العامة
+        emojiBtn.addEventListener('click', () => {
+            activeInput = messageInput;
+            picker.togglePicker(emojiBtn);
+        });
+
+        // زر إيموجي المحادثة الخاصة
+        privateEmojiBtn.addEventListener('click', () => {
+            activeInput = privateInput;
+            picker.togglePicker(privateEmojiBtn);
+        });
+
+        // --- تسجيل الدخول ---
+        function login() {
+            const val = document.getElementById('username-input').value.trim();
+            if(val) {
+                socket.emit('join-room', { username: val, room: currentRoom });
+                document.getElementById('login-modal').style.display = 'none';
+            }
+        }
+
+        // --- التبديل بين الغرف ---
+        function switchRoom(newRoom) {
+            if (newRoom === currentRoom) return;
+            currentRoom = newRoom;
+            document.getElementById('messages-box').innerHTML = '';
+            document.getElementById('current-room-title').innerText = `الغرفة الحالية: ${currentRoom}`;
+            socket.emit('switch-room', newRoom);
+        }
+
+        // --- إرسال الرسائل والصور في العامة ---
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            if(input.value.trim()) {
+                socket.emit('send-message', { text: input.value.trim() });
+                input.value = '';
+            }
+        }
+
+        function sendImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    socket.emit('send-message', { image: e.target.result });
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // --- إرسال الرسائل والصور في الخاص ---
+        function openPrivateChat(id, username) {
+            if (id === socket.id) return;
+            activePrivateTarget = { id, username };
+            document.getElementById('private-target-name').innerText = `محادثة مع: ${username}`;
+            document.getElementById('private-box').style.display = 'flex';
+        }
+
+        function closePrivateChat() {
+            document.getElementById('private-box').style.display = 'none';
+            activePrivateTarget = null;
+        }
+
+        function sendPrivateMessage() {
+            const input = document.getElementById('private-input');
+            if (input.value.trim() && activePrivateTarget) {
+                socket.emit('send-private-message', {
+                    targetId: activePrivateTarget.id,
+                    message: input.value.trim()
+                });
+                input.value = '';
+            }
+        }
+
+        function sendPrivateImage(event) {
+            const file = event.target.files[0];
+            if (file && activePrivateTarget) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    socket.emit('send-private-message', {
+                        targetId: activePrivateTarget.id,
+                        image: e.target.result
+                    });
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // --- استقبال الأحداث وعرض الإيموجيات بشكل صحيح ---
+        socket.on('chat-message', (data) => {
+            const box = document.getElementById('messages-box');
+            const div = document.createElement('div');
+            div.className = data.system ? 'message system' : 'message';
+            
+            if (data.system) {
+                div.textContent = data.text;
+            } else {
+                const userSpan = document.createElement('b');
+                userSpan.textContent = `${data.user}: `;
+                div.appendChild(userSpan);
+
+                if (data.text) {
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = data.text;
+                    div.appendChild(textSpan);
+                }
+
+                if (data.image) {
+                    const img = document.createElement('img');
+                    img.src = data.image;
+                    div.appendChild(document.createElement('br'));
+                    div.appendChild(img);
+                }
+            }
+            
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        });
+
+        socket.on('private-message', (data) => {
+            openPrivateChat(data.fromId, data.fromUser);
+            const pBox = document.getElementById('private-messages');
+            const div = document.createElement('div');
+            div.className = 'private-msg other';
+            
+            const userSpan = document.createElement('b');
+            userSpan.textContent = `${data.fromUser}: `;
+            div.appendChild(userSpan);
+
+            if (data.message) {
+                const textSpan = document.createElement('span');
+                textSpan.textContent = data.message;
+                div.appendChild(textSpan);
+            }
+
+            if (data.image) {
+                const img = document.createElement('img');
+                img.src = data.image;
+                div.appendChild(document.createElement('br'));
+                div.appendChild(img);
+            }
+
+            pBox.appendChild(div);
+            pBox.scrollTop = pBox.scrollHeight;
+        });
+
+        socket.on('private-message-sent', (data) => {
+            const pBox = document.getElementById('private-messages');
+            const div = document.createElement('div');
+            div.className = 'private-msg me';
+            
+            const userSpan = document.createElement('b');
+            userSpan.textContent = `أنت: `;
+            div.appendChild(userSpan);
+
+            if (data.message) {
+                const textSpan = document.createElement('span');
+                textSpan.textContent = data.message;
+                div.appendChild(textSpan);
+            }
+
+            if (data.image) {
+                const img = document.createElement('img');
+                img.src = data.image;
+                div.appendChild(document.createElement('br'));
+                div.appendChild(img);
+            }
+
+            pBox.appendChild(div);
+            pBox.scrollTop = pBox.scrollHeight;
+        });
+
+        socket.on('init-rooms', (data) => {
+            const roomsList = document.getElementById('rooms-list');
+            roomsList.innerHTML = '';
+            data.rooms.forEach(r => {
+                const li = document.createElement('li');
+                li.className = `room-item ${r === currentRoom ? 'active' : ''}`;
+                li.innerText = r;
+                li.onclick = () => switchRoom(r);
+                roomsList.appendChild(li);
+            });
+        });
+
+        socket.on('update-user-list', (users) => {
+            const list = document.getElementById('user-list');
+            list.innerHTML = '';
+            users.forEach(u => {
+                if (u.id !== socket.id) {
+                    const li = document.createElement('li');
+                    li.className = 'user-item';
+                    li.innerText = `💬 ${u.username}`;
+                    li.onclick = () => openPrivateChat(u.id, u.username);
+                    list.appendChild(li);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
