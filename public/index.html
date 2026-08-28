@@ -4,13 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>شات العرب</title>
-    <!-- مكتبة جوجل للـ Sign-In -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f7f6; display: flex; flex-direction: column; height: 100vh; }
         
-        /* شاشة تسجيل الدخول */
         #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; }
         .auth-card { background: #fff; padding: 30px; border-radius: 10px; width: 350px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
         .auth-card h2 { margin-bottom: 20px; color: #1e3c72; }
@@ -21,7 +19,6 @@
         .switch-auth:hover { color: #1e3c72; text-decoration: underline; }
         .error-msg { color: red; font-size: 12px; margin-bottom: 10px; display: none; }
 
-        /* تنسيقات الشات العامة */
         header { background: #1e3c72; color: #fff; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
         .container { display: flex; flex: 1; overflow: hidden; }
         .sidebar { width: 250px; background: #fff; border-left: 1px solid #ddd; padding: 15px; overflow-y: auto; }
@@ -56,7 +53,6 @@
 </head>
 <body>
 
-    <!-- شاشة تسجيل الدخول والإنشاء -->
     <div id="auth-screen">
         <div class="auth-card">
             <h2 id="auth-title">تسجيل الدخول</h2>
@@ -73,7 +69,6 @@
 
             <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
 
-            <!-- زر جوجل الرسمي -->
             <div id="g_id_onload"
                  data-client_id="593400807452-hasied40uonfha4fh157c7vtb0tibkk4.apps.googleusercontent.com"
                  data-callback="handleGoogleSignIn"
@@ -112,7 +107,6 @@
         </div>
     </div>
 
-    <!-- نافذة صندوق رسائل الخاص -->
     <div id="pm-inbox-modal">
         <div class="pm-inbox-header">
             <span style="cursor: pointer;" onclick="togglePmInboxModal()">✖</span>
@@ -121,7 +115,6 @@
         <div id="pm-inbox-list" class="pm-inbox-list"></div>
     </div>
 
-    <!-- نافذة الخاص المنبثقة -->
     <div id="private-chat-modal">
         <div id="private-modal-header">
             <span id="private-target-name">محادثة خاصة</span>
