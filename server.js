@@ -21,7 +21,6 @@ mongoose.connect('mongodb+srv://socialmediaarab_db_user:i0FCXmqnPJIuK4th@cluster
 .then(() => console.log('تم الاتصال بقاعدة البيانات بنجاح'))
 .catch(err => console.log('خطأ في الاتصال بقاعدة البيانات:', err));
 
-// نموذج بيانات المستخدم مع العمر والجنس والحسابات
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     email: { type: String, unique: true, sparse: true },
@@ -34,10 +33,9 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-app.use(express.json({ limit: '10mb' })); // لدعم رفع الصور الكبيرة عبر Base64
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// مسار دخول الزائر
 app.post('/api/guest-login', async (req, res) => {
     try {
         const { username, age, gender } = req.body;
@@ -54,7 +52,6 @@ app.post('/api/guest-login', async (req, res) => {
     }
 });
 
-// مسار تسجيل الدخول العادي
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password, email } = req.body;
@@ -77,7 +74,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// مسار المصادقة عبر جوجل مع الحفظ والتحديث
 app.post('/api/google-login', async (req, res) => {
     try {
         const { token, username, age, gender } = req.body;
@@ -112,7 +108,6 @@ app.post('/api/google-login', async (req, res) => {
     }
 });
 
-// إدارة الشات والميزات الكاملة عبر Socket.io
 io.on('connection', (socket) => {
     socket.on('join_room', (data) => {
         socket.username = data.username;
@@ -150,7 +145,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         if (socket.username) {
-            io.emit('chat_message', { system: true, message: `غادر ${socket.username} الغرفة` });
+            io.emit('chat_message', { system: type = true, message: `غادر ${socket.username} الغرفة` });
             updateActiveUsers(io, 'general');
         }
     });
